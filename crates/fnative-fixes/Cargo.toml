@@ -1,0 +1,14 @@
+[package]
+name = "fnative-fixes"
+version = "0.1.0"
+edition = "2021"
+description = "fnative plugin \"fixes\": small in-memory fixes to engine bugs, each found by its bytes and skipped when they differ"
+
+[lib]
+name = "fnative_fixes"
+crate-type = ["cdylib"]
+
+[dependencies]
+fnative-plugin = { path = "../fnative-plugin" }
+retour = "0.3"
+windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }

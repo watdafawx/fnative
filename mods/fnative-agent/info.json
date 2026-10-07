@@ -1,0 +1,3 @@
+{"name": "fnative-agent", "version": "0.1.0", "title": "fnative agent characters", "author": "mtopfox", "factorio_version": "2.0",
+ "description": "Characters without a player, driven through the remote interface \"agent\" (spawn, walk_to, mine, craft, place, look, say, status, events). With the fnative loader and bridge, an external program (an AI agent) drives them over HTTP. Works with plain remote.call too.",
+ "dependencies": ["base"]}

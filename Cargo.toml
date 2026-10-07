@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["crates/fnative-core", "crates/fnative-launcher", "crates/fnative-python", "crates/fnative-engine", "crates/fnative-plugin", "crates/fnative-profiler", "crates/fnative-web", "crates/fnative-std", "crates/fnative-diag", "crates/fnative-fixes"]
+
+[profile.release]
+debug = 1
+panic = "abort"

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fnative</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1><b>f</b>native</h1>
+  <nav><a class="on" href="index.html">Dashboard</a><a href="mods.html">Mods</a><a href="startup.html">Startup</a></nav>
+  <span id="hdr-status">connecting...</span>
+</header>
+<main class="wrap">
+  <div class="grid">
+    <fieldset><legend>Game</legend><div id="game" class="muted">...</div></fieldset>
+    <fieldset><legend>Agents</legend>
+      <div id="agents" class="muted">...</div>
+      <div class="row" style="margin-top:8px">
+        <input id="agentName" placeholder="name" value="bob" size="8">
+        <button id="spawn">Spawn near you</button>
+        <input id="sayText" placeholder="say..." size="12"><button id="say">Say</button>
+      </div>
+    </fieldset>
+  </div>
+  <fieldset><legend>Engine profile</legend>
+    <div class="row">
+      <button class="primary" id="start">Start</button><button id="stop">Stop</button>
+      <span id="profInfo" class="muted"></span>
+    </div>
+    <div class="scroll"><table id="prof"></table></div>
+    <p class="muted" style="font-size:12px">Inclusive times: a function's time includes the hooked functions it calls
+      (Game::update holds most entity updates). Mod scripts run in LuaEventDispatcher::dispatch.
+      Functions come from <code>plugins/profiler.json</code>.</p>
+  </fieldset>
+  <fieldset><legend>Remote interfaces</legend><div id="ifaces" class="muted">...</div></fieldset>
+</main>
+<script src="common.js"></script>
+<script>
+if (!needToken()) {
+  const fmt = (n, d = 3) => (n ?? 0).toFixed(d);
+  // (Lua's JSON writes an empty table as {}: a list may come back as an object)
+  const list = (x) => Array.isArray(x) ? x : Object.values(x || {});
+  async function status() {
+    try {
+      const s = await api("GET", "/api/status");
+      $("hdr-status").innerHTML = `build <code>${esc(s.build.slice(0, 8))}</code> · core ${s.core.join(".")} · ` +
+        (s.game_thread_answering ? '<span class="ok">game answering</span>' : '<span class="bad">game not answering (paused? bridge mod off?)</span>');
+      if (!s.game_thread_answering) return;
+      const g = await game("$game", "status");
+      $("game").innerHTML = `tick <b>${g.tick}</b> · speed ${g.speed} · ${g.mods} mods · surfaces ${list(g.surfaces).map(esc).join(", ")}<br>` +
+        list(g.players).map((p) => `${esc(p.name)} on ${esc(p.surface)} at ${fmt(p.position.x, 1)}, ${fmt(p.position.y, 1)}`).join("<br>");
+      const ag = await game("agent", "list").catch(() => null);
+      $("agents").innerHTML = ag === null ? "fnative-agent mod not enabled" :
+        Object.keys(ag).length ? Object.entries(ag).map(([n, p]) => `<b>${esc(n)}</b> at ${fmt(p.x, 1)}, ${fmt(p.y, 1)}`).join("<br>") : "none yet";
+    } catch (e) { $("hdr-status").innerHTML = `<span class="bad">${esc(e.message)}</span>`; }
+  }
+  async function profile() {
+    try {
+      const p = await api("GET", "/api/profile?consumer=dashboard");
+      $("profInfo").textContent = p.active ? `profiling: ${p.ticks} ticks in the last ${fmt(p.seconds, 1)} s` : "stopped (no timing cost)";
+      const top = Math.max(...p.functions.map((f) => f.ms_per_tick), 0.001);
+      $("prof").innerHTML = `<tr><th>function</th><th class="num">ms/tick</th><th style="width:30%"></th><th class="num">calls/tick</th><th class="num">µs/call</th></tr>` +
+        p.functions.filter((f) => f.calls > 0 || !p.active).map((f) => `<tr><td>${esc(f.name)}</td><td class="num">${fmt(f.ms_per_tick)}</td>
+          <td><div class="bar" style="width:${(100 * f.ms_per_tick / top).toFixed(1)}%"></div></td>
+          <td class="num">${fmt(f.calls_per_tick, 1)}</td><td class="num">${fmt(f.us_per_call, 2)}</td></tr>`).join("");
+    } catch (e) { $("profInfo").textContent = e.message; }
+  }
+  async function interfaces() {
+    try {
+      const i = await game("$game", "interfaces");
+      $("ifaces").innerHTML = Object.entries(i).sort().map(([n, fns]) => `<div><b>${esc(n)}</b>: <span class="muted">${fns.map(esc).join(", ")}</span></div>`).join("");
+    } catch (e) { $("ifaces").textContent = e.message; }
+  }
+  $("start").onclick = () => api("POST", "/api/profiler/start").then(profile);
+  $("stop").onclick = () => api("POST", "/api/profiler/stop").then(profile);
+  $("spawn").onclick = () => game("agent", "spawn", $("agentName").value).then(status).catch((e) => alert(e.message));
+  $("say").onclick = () => game("agent", "say", $("agentName").value, $("sayText").value).catch((e) => alert(e.message));
+  status(); profile(); interfaces();
+  setInterval(status, 2000); setInterval(profile, 1000);
+}
+</script>
+</body>
+</html>

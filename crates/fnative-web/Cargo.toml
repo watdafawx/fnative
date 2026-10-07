@@ -1,0 +1,17 @@
+[package]
+name = "fnative-web"
+version = "0.1.0"
+edition = "2021"
+description = "fnative plugin: a local HTTP API (127.0.0.1, token) for reporting and control, and the dashboard pages"
+
+[lib]
+name = "fnative_web"
+crate-type = ["cdylib"]
+
+[dependencies]
+fnative-plugin = { path = "../fnative-plugin" }
+raw-window-handle = "0.6"
+serde_json = "1"
+tiny_http = "0.12"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+wry = { version = "0.57", default-features = false }

@@ -1,0 +1,12 @@
+[package]
+name = "fnative-python"
+version = "0.1.0"
+edition = "2021"
+description = "fnative plugin: Python functions callable from Lua mods (embedded CPython via pyo3)"
+
+[lib]
+name = "fnative_python"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.22"

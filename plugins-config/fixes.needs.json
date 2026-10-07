@@ -1,0 +1,2 @@
+{"functions": ["?loadInternal@ModDataCache@@CA_NAEAVCacheData@1@@Z", "?luaC_forcestep@@YAXPEAUlua_State@@@Z"],
+ "classes": {"lua_State": ["l_G"], "global_State": ["totalbytes", "GCdebt", "gcstate", "gckind", "gcblocked"]}}

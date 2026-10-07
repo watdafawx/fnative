@@ -1,0 +1,26 @@
+{
+ "functions": [
+  "?update@Game@@QEAAXXZ",
+  "?updateEntities@Map@@QEAAXXZ",
+  "?update@Surface@@QEAAXXZ",
+  "?updateEntities@Chunk@@QEAAXVMapTick@@@Z",
+  "?update@TransportLine@@QEAAXVMapTick@@I@Z",
+  "?update@ElectricNetwork@@QEAAXVMapTick@@@Z",
+  "?update@Inserter@@UEAAXXZ",
+  "?update@CraftingMachine@@UEAAXXZ",
+  "?update@MiningDrill@@UEAAXXZ",
+  "?update@Lab@@UEAAXXZ",
+  "?update@LogisticNetwork@@QEAAXXZ",
+  "?update@ConstructionRobot@@UEAAXXZ",
+  "?update@LogisticRobot@@UEAAXXZ",
+  "?update@Roboport@@UEAAXXZ",
+  "?update@PathFinder@@QEAAXXZ",
+  "?update@UnitGroup@@QEAAXXZ",
+  "?update@Turret@@UEAAXXZ",
+  "?updateSpeedAndMove@Train@@QEAAXXZ",
+  "?update@Character@@UEAAXXZ",
+  "?updatePollution@Chunk@@QEAAXAEAUUpdatePollutionContext@1@@Z",
+  "?dispatch@LuaEventDispatcher@@QEAAXVMapTick@@@Z",
+  "?dispatch@LuaEventDispatcher@@QEAAXAEBVGameAction@@VMapTick@@@Z"
+ ]
+}

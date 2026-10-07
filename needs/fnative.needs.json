@@ -1,0 +1,5 @@
+{
+  "classes": {
+    "Inserter": ["heldStack", "pickupTarget", "dropTarget", "handDistance", "tickOfLastPickup"]
+  }
+}

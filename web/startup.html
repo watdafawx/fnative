@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fnative startup</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .phases { display: flex; height: 26px; border-radius: 3px; overflow: hidden; border: 1px solid #000; }
+  .phases div { height: 100%; min-width: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
+  .big { font-size: 28px; font-weight: 700; color: var(--accent2); }
+  .stack { display: flex; height: 8px; min-width: 2px; border-radius: 2px; overflow: hidden; }
+  .stack div { height: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>f</b>native</h1>
+  <nav><a href="index.html">Dashboard</a><a href="mods.html">Mods</a><a class="on" href="startup.html">Startup</a></nav>
+  <span id="hdr-status"></span>
+</header>
+<main class="wrap">
+  <fieldset><legend>Startup</legend>
+    <div class="row"><span class="big" id="total">...</span><span class="muted" id="sub"></span></div>
+    <div class="phases" id="bar" style="margin-top:10px"></div>
+    <div class="legend" id="legend"></div>
+  </fieldset>
+  <fieldset><legend>Mods, slowest first</legend>
+    <div class="row" style="margin-bottom:8px">
+      <input id="q" placeholder="search" size="24">
+      <select id="by"><option value="total_est">by total (estimated)</option><option value="lua">by Lua (measured)</option>
+        <option value="sprites_est">by sprites (estimated)</option><option value="sounds_est">by sounds (estimated)</option></select>
+      <span id="info" class="muted"></span>
+    </div>
+    <div class="scroll"><table id="t"></table></div>
+    <p class="muted" style="font-size:12px"><b>Lua</b> is measured: each of the mod's settings/data files, from its
+      "Loading mod" line in the game's log to the next. <b>Sprites</b> and <b>sounds</b> are estimates: the log only
+      gives those phases as a whole (they load in parallel), so each mod gets the share its image and sound bytes are of
+      the total. Hover a Lua time for its stages.</p>
+  </fieldset>
+</main>
+<script src="common.js"></script>
+<script>
+if (!needToken()) {
+  const COLORS = { "Start, Steam, finding mods": "#6b6e72", "Mod settings (Lua)": "#8c6bd6", "Mod data (Lua)": "#f0a230",
+    "Prototypes": "#e07a3a", "Sounds": "#58b6ff", "Graphics setup": "#7c8790", "Sprites": "#6fcf7f", "Finishing": "#4a4d50" };
+  const fmt = (s) => s >= 60 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${s.toFixed(1)} s`;
+  const mb = (b) => b > 1048576 ? (b / 1048576).toFixed(0) + " MB" : b > 0 ? Math.max(1, Math.round(b / 1024)) + " kB" : "–";
+  let data = null;
+  function render() {
+    const q = $("q").value.trim().toLowerCase(), by = $("by").value;
+    const rows = data.mods.filter((m) => !q || m.name.toLowerCase().includes(q)).sort((a, b) => b[by] - a[by]);
+    const top = Math.max(...rows.map((m) => m.total_est), 0.001);
+    $("t").innerHTML = `<tr><th class="num">#</th><th>mod</th><th class="num">total ~</th><th style="width:22%"></th>
+      <th class="num">Lua</th><th class="num">sprites ~</th><th class="num">sounds ~</th><th class="num">images</th><th class="num">sounds</th></tr>` +
+      rows.slice(0, 400).map((m, i) => `<tr><td class="num muted">${i + 1}</td><td>${esc(m.name)} <span class="muted">${esc(m.version)}</span></td>
+        <td class="num">${m.total_est.toFixed(2)}</td>
+        <td><div class="stack" style="width:${(100 * m.total_est / top).toFixed(1)}%">
+          <div style="width:${(100 * m.lua / (m.total_est || 1)).toFixed(1)}%;background:#f0a230"></div>
+          <div style="width:${(100 * m.sprites_est / (m.total_est || 1)).toFixed(1)}%;background:#6fcf7f"></div>
+          <div style="width:${(100 * m.sounds_est / (m.total_est || 1)).toFixed(1)}%;background:#58b6ff"></div></div></td>
+        <td class="num" title="${esc(Object.entries(m.stages).map(([k, v]) => `${k}: ${v.toFixed(3)} s`).join("\n"))}">${m.lua.toFixed(2)}</td>
+        <td class="num">${m.sprites_est.toFixed(2)}</td><td class="num">${m.sounds_est.toFixed(2)}</td>
+        <td class="num date">${mb(m.image_bytes)}</td><td class="num date">${mb(m.sound_bytes)}</td></tr>`).join("");
+    $("info").textContent = `${rows.length} mods · seconds; ~ = estimated`;
+  }
+  (async () => {
+    try {
+      data = await native("py", "fnative_tools.startup:report");
+      $("total").textContent = data.total ? fmt(data.total) : "not finished";
+      $("sub").textContent = `to the main menu · ${data.mods.length} mods · from ${data.log} (${new Date(data.log_time * 1000).toLocaleString()})`;
+      const total = data.total || data.phases.reduce((a, p) => Math.max(a, p.end), 0);
+      $("bar").innerHTML = data.phases.map((p) => `<div title="${esc(p.name)}: ${fmt(p.seconds)}" style="width:${(100 * p.seconds / total).toFixed(2)}%;background:${COLORS[p.name] || "#888"}"></div>`).join("");
+      $("legend").innerHTML = data.phases.map((p) => `<span><i style="background:${COLORS[p.name] || "#888"}"></i>${esc(p.name)} <b>${fmt(p.seconds)}</b> <span class="muted">${esc(p.what)}</span></span>`).join("");
+      render();
+    } catch (e) { $("total").textContent = e.message; }
+  })();
+  $("q").oninput = render; $("by").onchange = render;
+}
+</script>
+</body>
+</html>

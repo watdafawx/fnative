@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fnative mods</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1><b>f</b>native</h1>
+  <nav><a href="index.html">Dashboard</a><a class="on" href="mods.html">Mods</a><a href="startup.html">Startup</a></nav>
+  <span id="hdr-status"></span>
+</header>
+<main class="wrap">
+  <fieldset><legend>Mods</legend>
+    <div class="row" style="margin-bottom:8px">
+      <input id="q" placeholder="search name, title, author" size="28">
+      <select id="show"><option value="all">all</option><option value="on">enabled</option><option value="off">disabled</option>
+        <option value="new">added in the last 7 days</option><option value="upd">update on the portal</option></select>
+      <button id="portal">Check the portal for updates</button>
+      <span id="info" class="muted"></span>
+    </div>
+    <div class="scroll"><table id="t"></table></div>
+    <p class="muted" style="font-size:12px">
+      <b>Load</b>: the order the game loaded mods in at its last start (from its log); "–" = not loaded then (disabled,
+      or enabled since). <b>Added</b>: when fnative first saw the mod (mods already there the first time: their file's
+      date). <b>Updated</b>: when this version's file arrived. <b>Portal</b>: the newest release for this game version.
+      Enabling and disabling stay in the game's own mod manager (it owns mod-list.json while it runs).</p>
+  </fieldset>
+</main>
+<script src="common.js"></script>
+<script>
+if (!needToken()) {
+  let mods = [], portal = {}, sortKey = "load", sortDir = 1;
+  const day = (t) => t ? new Date(t * 1000).toISOString().slice(0, 10) : "–";
+  const size = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " kB";
+  const vkey = (v) => (v || "0").split(".").map((x) => x.padStart(6, "0")).join(".");
+  const newer = (m) => portal[m.name] && portal[m.name].version && vkey(portal[m.name].version) > vkey(m.version);
+  const cols = [
+    ["load", "Load", "num"], ["name", "Mod"], ["version", "Version"], ["added", "Added"], ["updated", "Updated"],
+    ["size", "Size", "num"], ["author", "Author"], ["enabled", "On"], ["portal", "Portal"],
+  ];
+  function value(m, k) {
+    if (k === "load") return m.load ?? 1e9;
+    if (k === "name") return (m.title || m.name).toLowerCase();
+    if (k === "version") return vkey(m.version);
+    if (k === "portal") return newer(m) ? 0 : 1;
+    if (k === "author") return (m.author || "").toLowerCase();
+    return m[k];
+  }
+  function render() {
+    const q = $("q").value.trim().toLowerCase(), show = $("show").value, week = Date.now() / 1000 - 7 * 86400;
+    let rows = mods.filter((m) => (!q || [m.name, m.title, m.author].some((s) => (s || "").toLowerCase().includes(q)))
+      && (show === "all" || (show === "on" && m.enabled) || (show === "off" && !m.enabled) || (show === "new" && m.added > week) || (show === "upd" && newer(m))));
+    rows.sort((a, b) => { const x = value(a, sortKey), y = value(b, sortKey); return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
+    $("t").innerHTML = "<tr>" + cols.map(([k, label, cls]) => `<th class="sort ${cls || ""} ${k === sortKey ? "on" : ""}" data-k="${k}">${label}${k === sortKey ? (sortDir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr>" +
+      rows.map((m) => `<tr${m.enabled ? "" : ' class="muted"'}>
+        <td class="num">${m.load ?? "–"}</td>
+        <td><b>${esc(m.title)}</b> <span class="muted">${esc(m.name)}</span>${m.older_copies ? ` <span class="pill" title="${esc(m.older_copies.join(", "))}">+${m.older_copies.length} old</span>` : ""}</td>
+        <td>${esc(m.version)}</td><td class="date">${day(m.added)}</td><td class="date">${day(m.updated)}</td><td class="num date">${size(m.size)}</td>
+        <td>${esc(m.author)}</td><td>${m.enabled ? '<span class="ok">on</span>' : "off"}</td>
+        <td>${portal[m.name] ? (newer(m) ? `<span class="accent">${esc(portal[m.name].version)} (${day(Date.parse(portal[m.name].released_at) / 1000)})</span>` : '<span class="muted">latest</span>') : ""}</td></tr>`).join("");
+    $("info").textContent = `${rows.length} shown · ${mods.filter((m) => m.enabled).length} of ${mods.length} enabled`;
+  }
+  $("t").onclick = (e) => {
+    const th = e.target.closest("th[data-k]"); if (!th) return;
+    if (th.dataset.k === sortKey) sortDir = -sortDir; else { sortKey = th.dataset.k; sortDir = ["added", "updated", "size"].includes(sortKey) ? -1 : 1; }
+    render();
+  };
+  $("q").oninput = render; $("show").onchange = render;
+  $("portal").onclick = async () => {
+    $("info").textContent = "asking the mod portal...";
+    try { const p = await native("py", "fnative_tools.mods:portal"); if (p.error) throw new Error(p.error); portal = p; render(); }
+    catch (e) { $("info").textContent = e.message; }
+  };
+  (async () => {
+    $("info").textContent = "reading the mods folder...";
+    try {
+      const d = await native("py", "fnative_tools.mods:listing");
+      mods = d.mods;
+      $("hdr-status").innerHTML = `<code>${esc(d.mods_dir)}</code> · load order from the start at ${d.load_order_time ? new Date(d.load_order_time * 1000).toLocaleString() : "?"}`;
+      render();
+    } catch (e) { $("info").textContent = e.message; }
+  })();
+}
+</script>
+</body>
+</html>
