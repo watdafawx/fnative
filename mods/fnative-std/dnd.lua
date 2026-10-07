@@ -1,6 +1,8 @@
 -- Drag & drop between GUI elements.
 --
---   dnd.draggable(element, payload)      payload: anything JSON-like, handed to the drop handlers
+--   dnd.draggable(element, payload)      payload: anything JSON-like, handed to the drop handlers;
+--                                        a table's .sprite / .caption is what the ghost shows; with .card_size (px)
+--                                        the ghost is a copy of the element, centred on the cursor
 --   dnd.droppable(element, accept?)      accept: true (anything), or a kind: only payloads with .kind == accept
 --   dnd.on_drop(function(player, payload, target, source) ... end)
 --   events.register({ input.handlers, dnd.handlers, ... })
@@ -16,7 +18,7 @@ local input = require("__fnative-std__/input")
 
 local M = {}
 local DRAG, DROP = "fstd_drag", "fstd_drop"
-local drop_handlers = {}
+local drop_handlers, phase_handlers = {}, {}
 local state = {}       -- player_index -> {phase = "armed" | "dragging" | "picked", source, payload, ghost, target}
 local last_left = {}
 local handled_tick = {}  -- player_index -> tick of a click dnd used
@@ -36,6 +38,11 @@ function M.droppable(el, accept)
 end
 
 function M.on_drop(fn) drop_handlers[#drop_handlers + 1] = fn end
+
+--- on_phase(function(player, phase, payload, source, target, dropped) ... end), for a payload with .preview = true:
+--- "start" (the ghost appears), "over" (target changed; nil = off the droppables), "end" (after the drop handlers).
+--- The target is the one a release would drop on, so a mod can show the result already (a live reorder).
+function M.on_phase(fn) phase_handlers[#phase_handlers + 1] = fn end
 
 function M.dragging(player_index)
   local s = state[player_index]
@@ -60,19 +67,50 @@ local function highlight(s, el)
   if el and el.valid then pcall(function() el.toggled = true end) end
 end
 
+-- a copy of an element and everything in it, for a ghost (styles are copied by name, so it looks the same)
+local function clone(parent, el)
+  local def = { type = el.type, style = el.style.name, ignored_by_interaction = true }
+  for _, k in ipairs({ "caption", "sprite", "value", "visible", "toggled", "direction" }) do
+    local ok, v = pcall(function() return el[k] end)
+    if ok and v ~= nil and v ~= "" then def[k] = v end
+  end
+  if el.type == "sprite-button" or el.type == "button" then def.toggled = nil end
+  local c = parent.add(def)
+  if el.type == "flow" then
+    local ok, v = pcall(function() return el.style.horizontal_spacing end)
+    if ok and v then c.style.horizontal_spacing = v end
+  end
+  for _, child in ipairs(el.children) do clone(c, child) end
+  return c
+end
+
 local function make_ghost(player, s, note)
+  local size = type(s.payload) == "table" and s.payload.card_size
+  if size and not note then  -- a card: a copy of the source, centred on the cursor
+    local g = player.gui.screen.add({ type = "flow", name = "fstd_dnd_ghost", ignored_by_interaction = true })
+    clone(g, s.source)
+    s.ghost, s.ghost_offset = g, -size / 2
+    return g
+  end
   local g = player.gui.screen.add({ type = "frame", name = "fstd_dnd_ghost", style = "fstd_ghost", direction = "horizontal",
     ignored_by_interaction = true })
   local src = s.source
-  if src.valid and src.type == "sprite-button" and src.sprite and src.sprite ~= "" then
-    g.add({ type = "sprite", sprite = src.sprite, ignored_by_interaction = true })
-  end
+  local sprite = type(s.payload) == "table" and s.payload.sprite  -- (for sources that draw their icon in child elements)
+  if not sprite and src.valid and src.type == "sprite-button" and src.sprite and src.sprite ~= "" then sprite = src.sprite end
+  if sprite then g.add({ type = "sprite", sprite = sprite, ignored_by_interaction = true }) end
   local cap = src.valid and src.caption
   if type(s.payload) == "table" and s.payload.caption then cap = s.payload.caption end
   if cap and cap ~= "" then g.add({ type = "label", caption = cap, ignored_by_interaction = true }) end
   if note then g.add({ type = "label", caption = note, style = "info_label", ignored_by_interaction = true }) end
   s.ghost = g
   return g
+end
+
+local function previewing(s) return type(s.payload) == "table" and s.payload.preview end
+
+local function emit(player, s, phase, target, dropped)
+  if not previewing(s) then return end
+  for _, fn in ipairs(phase_handlers) do fn(player, phase, s.payload, s.source, target, dropped) end
 end
 
 local function finish(player, s, drop)
@@ -82,7 +120,11 @@ local function finish(player, s, drop)
   state[player.index] = nil
   if drop and target and target.valid and target ~= source and accepts(target, payload) then
     for _, fn in ipairs(drop_handlers) do fn(player, payload, target, source) end
+  else
+    drop = false
   end
+  s.target = target
+  emit(player, s, "end", target, drop)
 end
 
 -- (a ghost left in a save by a drag that never finished)
@@ -115,6 +157,7 @@ local function tick()
           elseif h ~= s.source then
             s.phase = "dragging"
             make_ghost(player, s)
+            emit(player, s, "start")
           end
         end
         s = state[i]
@@ -122,10 +165,25 @@ local function tick()
           if not s.source.valid then
             finish(player, s, false)
           elseif not m.left then
+            -- (the hover event for what's under the cursor can arrive on the release tick itself: use it)
+            if accepts(h, s.payload) and h ~= s.source then highlight(s, h) end
             finish(player, s, true)
           else
-            if s.ghost and s.ghost.valid then s.ghost.location = { x = m.x + 16, y = m.y + 16 } end
-            highlight(s, accepts(h, s.payload) and h or nil)
+            if s.ghost and s.ghost.valid then local o = s.ghost_offset or 16; s.ghost.location = { x = m.x + o, y = m.y + o } end
+            if previewing(s) then
+              -- (the card slides under the cursor, so the cursor is often over the source itself, or between two
+              -- cards: keep the target until the cursor reaches another droppable or leaves them all)
+              local t = s.target
+              if h and h ~= s.source then
+                t = accepts(h, s.payload) and h or nil
+              end
+              if t ~= s.target then
+                s.target = t
+                emit(player, s, "over", t)
+              end
+            else
+              highlight(s, accepts(h, s.payload) and h or nil)
+            end
           end
         end
         last_left[i] = m.left
