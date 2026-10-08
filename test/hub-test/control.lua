@@ -1,5 +1,14 @@
 -- drives the fnative hub in a real client: the Hub tab with the profiler, the Mods and Startup tabs once their data
 -- is in (screenshots), then a web page in the panel over the game
+-- (no crash-site intro: it pauses the game and waits for the player to press Tab)
+script.on_init(function()
+  local fp = remote.interfaces["freeplay"]
+  if fp then
+    if fp.set_skip_intro then remote.call("freeplay", "set_skip_intro", true) end
+    if fp.set_disable_crashsite then remote.call("freeplay", "set_disable_crashsite", true) end
+  end
+end)
+
 local mod_gui = require("mod-gui")
 local step, waited = "hub", 0
 

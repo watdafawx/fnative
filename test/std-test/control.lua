@@ -1,4 +1,13 @@
 -- drives fnative-std-demo in a real client with a mocked mouse (std.mock) and screenshots the steps
+-- (no crash-site intro: it pauses the game and waits for the player to press Tab)
+script.on_init(function()
+  local fp = remote.interfaces["freeplay"]
+  if fp then
+    if fp.set_skip_intro then remote.call("freeplay", "set_skip_intro", true) end
+    if fp.set_disable_crashsite then remote.call("freeplay", "set_disable_crashsite", true) end
+  end
+end)
+
 local out = {}
 local function say(s) out[#out + 1] = s end
 local function shot(name)
