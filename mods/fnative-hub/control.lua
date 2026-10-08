@@ -335,7 +335,8 @@ local function hub_tab(content)
   content.add({ type = "label", caption = "fnative " .. native.version() .. " · build " .. tostring(build.build or "?"):sub(1, 8)
     .. " · plugins: " .. table.concat(plugins(), ", ") }).style.single_line = false
   local links = content.add({ type = "flow", direction = "horizontal" })
-  if remote.interfaces["bpgen-companion"] and remote.interfaces["bpgen-companion"].open_window then
+  local bp = remote.interfaces["bpgen"] and "bpgen" or remote.interfaces["bpgen-companion"] and "bpgen-companion"
+  if bp and remote.interfaces[bp].open_window then  -- (bpgen's mod; "bpgen-companion" before 0.6)
     links.add({ type = "button", caption = "bpgen", tags = { fhub = "bpgen" }, tooltip = "Plan a production line, previewed by the game" })
   end
   if has("web") then
@@ -440,7 +441,7 @@ local function click(e)
   if not action then return end
   if action == "bpgen" then
     player.gui.screen[NAME].destroy()
-    remote.call("bpgen-companion", "open_window", player.index)
+    remote.call(remote.interfaces["bpgen"] and "bpgen" or "bpgen-companion", "open_window", player.index)
   elseif action == "dashboard" then
     open_page("")
   elseif action == "copy" then
