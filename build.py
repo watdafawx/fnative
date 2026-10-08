@@ -1,6 +1,6 @@
-"""Builds fnative into native/dist: the launcher, the core DLL, the plugins (C and Python) and fnative.env.
+"""Builds fnative into fnative/dist: the launcher, the core DLL, the plugins (C and Python) and fnative.env.
 
-    python native/build.py
+    python fnative/build.py
 
 Then start the game with dist/factorio-native.exe [factorio arguments], or as a Steam launch option:
     "<this folder>\\dist\\factorio-native.exe" %COMMAND%

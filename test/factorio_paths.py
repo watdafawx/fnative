@@ -56,7 +56,7 @@ def run_dir(path):
     """a write-data folder for headless runs, with its own config.ini, so tests never touch the game's own"""
     path.mkdir(parents=True, exist_ok=True)
     ini = path / "config.ini"
-    if not ini.exists():
-        ini.write_text(f"[path]\nread-data={PATHS['game_data'].as_posix()}\nwrite-data={path.as_posix()}\n",
-                       encoding="utf-8")
+    text = f"[path]\nread-data={PATHS['game_data'].as_posix()}\nwrite-data={path.as_posix()}\n"
+    if not ini.exists() or f"write-data={path.as_posix()}" not in ini.read_text(encoding="utf-8"):
+        ini.write_text(text, encoding="utf-8")  # (written again when the folder has moved)
     return path

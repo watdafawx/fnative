@@ -3,7 +3,7 @@ import json, shutil, subprocess, sys
 from pathlib import Path
 
 NATIVE = Path(__file__).resolve().parents[1]
-ROOT = NATIVE.parent
+ROOT = NATIVE.parent / "bpgen"  # (bpgen, beside fnative in the dev repo)
 from factorio_paths import run_dir  # noqa: E402
 RUN = run_dir(Path(__file__).resolve().parent / "run")
 MODS = RUN / "native-mods"

@@ -107,8 +107,11 @@ M.handlers = {
         if m then
           if not r then
             if m.left and not last_left[i] then
-              if player.gui.screen[grip] then
-                local s = saved(i, grip)
+              -- (only this mod's own windows: every mod using the library sees every grip, but the size it needs
+              -- lives in the storage of the mod that made the window)
+              local win = player.gui.screen[grip]
+              local s = win and win.get_mod() == script.mod_name and saved(i, grip)
+              if s and s.width and s.height then
                 resizing[i] = { name = grip, x = m.x, y = m.y, w = s.width, h = s.height,
                   min_w = h.tags.min_w, min_h = h.tags.min_h }
               end
