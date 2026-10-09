@@ -380,7 +380,7 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |
 | `run_input_gui.py` | the `input` plugin in a real game window: a key press as an action event, then blocked |
 | `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |
-| `run_draw_gui.py` | the `draw` plugin in a real game window, the screen grabbed (`testun\script-output\draw-screen.png`) |
+| `run_draw_gui.py` | the `draw` plugin in a real game window, the screen grabbed (`test\run\script-output\draw-screen.png`) |
 | `run_engine_api.py` | `native.read`, `layout`, `metatable`, `events`, the `hooks` plugin and `fse-std`'s `extend` and `native_events` |
 
 ## Related
