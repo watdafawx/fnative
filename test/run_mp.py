@@ -1,11 +1,24 @@
 """multiplayer on this machine: a headless server and a game client, both through dist/fse-launcher.exe, with the
 mp-test mod (its state changes only through fse's simulation events and native.sync). Passes when both peers see
 the same rotations and synced clocks and neither log has a desync; then a plain client (FSE_OFF) must be kicked.
-Opens game windows: don't run it while you play. Port 34297 on 127.0.0.1."""
-import json, os, re, shutil, subprocess, sys, time
+Opens game windows: don't run it while you play. Port 34297 on 127.0.0.1.
+
+Other projects use it for their own multiplayer tests:
+    run_mp.py --mod <mod folder>... --expect <regex> [--no-kick] [--first]
+loads those mods (fse-std always) instead of mp-test; each peer of the test mod writes "tick N <state>" lines to
+script-output/mp-server.txt (for_player 0) and mp-player-1.txt (for_player 1) every few seconds; the client's must
+match the server's at the same ticks and its last one match --expect. --no-kick (or --first) skips the plain client."""
+import argparse, json, os, re, shutil, subprocess, sys, time
 from pathlib import Path
 
 NATIVE = Path(__file__).resolve().parents[1]
+ap = argparse.ArgumentParser()
+ap.add_argument("--mod", action="append", type=Path)
+ap.add_argument("--expect", default=r"synced [1-9]")
+ap.add_argument("--no-kick", action="store_true")
+ap.add_argument("--first", action="store_true")
+args = ap.parse_args()
+test_mods = args.mod or [Path(__file__).resolve().parent / "mp-test"]
 from factorio_paths import PATHS, run_dir  # noqa: E402
 HERE = Path(__file__).resolve().parent
 # (fresh folders: a game killed mid-write can leave a config.ini the next start asks to reset)
@@ -19,8 +32,9 @@ PORT = "34297"
 shutil.rmtree(MODS, ignore_errors=True)
 MODS.mkdir(parents=True)
 shutil.copytree(NATIVE / "mods" / "fse-std", MODS / "fse-std")
-shutil.copytree(HERE / "mp-test", MODS / "mp-test")
-names = ["base", "fse-std", "mp-test"]
+for m in test_mods:
+    shutil.copytree(m, MODS / m.name, ignore=shutil.ignore_patterns("test", "__pycache__", "*.zip"))
+names = ["base", "fse-std"] + [m.name for m in test_mods]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": n in names} for n in
                                                          names + ["elevated-rails", "quality", "space-age"]]}))
 save = S / "mp.zip"
@@ -75,12 +89,13 @@ try:
     # (the same tick must read the same on both peers; the client starts later)
     common_ticks = {l.split()[1]: l for l in s_lines}
     same = [l == common_ticks.get(l.split()[1], l) for l in c_lines]
-    synced = any(int(l.split()[5]) > 0 for l in c_lines)
-    print("joined:", joined, " same state at the same ticks:", all(same) and len(same) > 0, " synced clocks:", synced,
+    synced = bool(c_lines) and re.search(args.expect, c_lines[-1]) is not None
+    print("joined:", joined, " same state at the same ticks:", all(same) and len(same) > 0, " expected:", synced,
           "\ndesync lines:", desync[:5] or "none")
     ok1 = joined and all(same) and len(same) > 0 and synced and not desync
 
-    if "--first" in sys.argv:
+    if args.first or args.no_kick:
+        print("PASS" if ok1 else "FAIL")
         sys.exit(0 if ok1 else 1)
     # a client without fse: kicked by the handshake (once the server has let the first one go: same player name)
     left = wait(lambda: "removing peer(1)" in log(S), 120)
