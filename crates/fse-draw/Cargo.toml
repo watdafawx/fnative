@@ -1,0 +1,16 @@
+[package]
+name = "fse-draw"
+version = "0.1.0"
+edition = "2021"
+description = "fse plugin: shapes and text drawn over the game world every frame, on this computer only"
+
+[lib]
+name = "fse_draw"
+crate-type = ["cdylib"]
+
+[dependencies]
+fse-plugin = { path = "../fse-plugin" }
+serde_json = "1"
+tiny-skia = "0.11"
+fontdue = "0.9"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_Threading", "Win32_System_LibraryLoader"] }

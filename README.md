@@ -247,6 +247,7 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
 | `diag` | off unless `FSE_DIAG=1`: logs the message and stack of every engine error |
 | `entityinfo` | a mod's own rows in the game's info panel for the entity under the cursor (below) |
+| `draw` | lines, rectangles, circles and text drawn over the game world every frame, on this computer only (safe in multiplayer): `draw.set {id, surface, shapes}`, `draw.clear {id}` (below) |
 | `hooks` | any engine function, by its pdb name, as an event for Lua on every call, with chosen arguments read (below) |
 | `input` | every player input action (336 kinds: `native.layout("InputActionType").values`) as an event `action` `{type, player, tick, blocked}` (`input.watch {types}` or `{all = true}`), and chosen kinds dropped before the game applies them (`input.block {types, player?}`) |
 | `hello` | the C example |
@@ -260,6 +261,23 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 - **gc-idle-skip**: every tick the engine forces a Lua GC step in each mod's Lua state, even states that allocated
   nothing since their last cycle, so they re-walk their whole heap again and again. The fix skips the step only for
   a state that is between cycles and whose memory hasn't changed. With ~400 mods this halved the GC time per tick.
+
+### Drawing over the world (`draw`)
+
+```lua
+native.call("draw", "set", helpers.table_to_json({ id = "my-mod:route", surface = player.surface.index, shapes = {
+  { line = { { 0, 0 }, { 10, 5 } }, color = { 0.3, 0.6, 1 }, width = 2 },
+  { rect = { { 9.5, 4.5 }, { 10.5, 5.5 } }, color = { 1, 0.2, 0.2 }, width = 3 },    -- width 0: filled
+  { circle = { 0, 0 }, radius = 2, color = { 0.2, 1, 0.2, 0.8 } },
+  { text = "the chest", at = { 9.5, 4.2 }, size = 18 },
+} }))
+native.call("draw", "clear", helpers.table_to_json({ id = "my-mod:route" }))
+```
+
+Positions in tiles, widths and text size in screen pixels, colours 0..1. It is this computer's own (no game state:
+safe in multiplayer, and for what only this player should see). Nothing in the game's renderer is touched: a
+transparent window that lets clicks through lies over the game's client area, and each time the camera moves the
+shapes are drawn where it puts them. They sit above the game's own GUI; not over an exclusive fullscreen game.
 
 ### Engine functions as events (`hooks`)
 
@@ -362,6 +380,7 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |
 | `run_input_gui.py` | the `input` plugin in a real game window: a key press as an action event, then blocked |
 | `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |
+| `run_draw_gui.py` | the `draw` plugin in a real game window, the screen grabbed (`testun\script-output\draw-screen.png`) |
 | `run_engine_api.py` | `native.read`, `layout`, `metatable`, `events`, the `hooks` plugin and `fse-std`'s `extend` and `native_events` |
 
 ## Related

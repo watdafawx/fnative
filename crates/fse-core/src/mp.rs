@@ -45,6 +45,11 @@ static SIM: Mutex<Vec<(String, String, String)>> = Mutex::new(Vec::new());
 /// Lua states that take the simulation events at the end of each tick (their global __fse_tick_end)
 static RECEIVERS: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 
+/// the running game's Scenario, 0 before one runs
+pub fn scenario() -> usize {
+    SCENARIO.load(Relaxed)
+}
+
 /// is the simulation updating right now? (events emitted then belong to it)
 pub fn updating() -> bool {
     UPDATING.load(Relaxed)

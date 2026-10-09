@@ -35,6 +35,8 @@ pub struct Host {
     read: unsafe extern "C" fn(u64, *const c_char, *const c_char, u32, *mut *const c_char, *mut usize) -> i32,
     // (core 0.8.0)
     emit_local: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize),
+    // (core 0.10.0)
+    scenario: unsafe extern "C" fn() -> u64,
 }
 
 // (the version string it points to is a static CString: read-only, lives for the whole process)
@@ -109,6 +111,11 @@ unsafe extern "C" fn host_emit(plugin: *const c_char, name: *const c_char, data:
     crate::events::emit(&cstr(plugin), &cstr(name), &String::from_utf8_lossy(bytes), false);
 }
 
+/// the running game's Scenario (a root for host->read: "game._Mypair._Myval2..."), 0 before a game runs
+unsafe extern "C" fn host_scenario() -> u64 {
+    crate::mp::scenario() as u64
+}
+
 /// an event that never counts as a simulation event (from the render thread, the mouse, ...)
 unsafe extern "C" fn host_emit_local(plugin: *const c_char, name: *const c_char, data: *const c_char, len: usize) {
     let bytes = if data.is_null() { &[][..] } else { std::slice::from_raw_parts(data as *const u8, len) };
@@ -157,7 +164,7 @@ pub fn load_all() {
         build: BUILD_C.get_or_init(|| CString::new(crate::engine::engine().map(|e| e.build.to_string()).unwrap_or_default())
             .unwrap_or_default()).as_ptr(),
         field_offset: host_field_offset, class_size: host_class_size, call: host_call, emit: host_emit,
-        read: host_read, emit_local: host_emit_local,
+        read: host_read, emit_local: host_emit_local, scenario: host_scenario,
     });
     let Some(dir) = folder() else { return };
     let Ok(entries) = std::fs::read_dir(&dir) else {

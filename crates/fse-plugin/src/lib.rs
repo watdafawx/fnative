@@ -38,6 +38,8 @@ pub struct Host {
     pub read: unsafe extern "C" fn(u64, *const c_char, *const c_char, u32, *mut *const c_char, *mut usize) -> i32,
     // core 0.8.0
     pub emit_local: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize),
+    // core 0.10.0
+    pub scenario: unsafe extern "C" fn() -> u64,
 }
 
 static mut HOST: *const Host = std::ptr::null();
@@ -133,6 +135,14 @@ pub fn emit_local(name: &str, data: &str) {
     let plugin = unsafe { NAME.as_ref().map(|n| n.as_ptr()).unwrap_or(c"?".as_ptr()) };
     let n = c(name);
     unsafe { (h.emit_local)(plugin, n.as_ptr(), data.as_ptr() as *const c_char, data.len()) }
+}
+
+/// the running game's Scenario (read from it: "game._Mypair._Myval2...", class "Scenario"), None before a game runs
+/// or with a core older than 0.10.0
+pub fn scenario() -> Option<usize> {
+    let h = host().filter(|_| core_version() >= (0, 10, 0))?;
+    let s = unsafe { (h.scenario)() } as usize;
+    (s != 0).then_some(s)
 }
 
 /// an engine object's value along `path`, as JSON (`class` "": the object's real class, from its vtable)

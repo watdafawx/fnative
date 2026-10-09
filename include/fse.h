@@ -59,6 +59,9 @@ typedef struct fse_host {
     /* --- added in core 0.8.0 --- emit counts an event raised while the simulation updates as part of that tick's
      * "fse-event", which every multiplayer peer gets; emit_local never does (the render thread, input, workers) */
     void (*emit_local)(const char *plugin, const char *name, const char *data, size_t len);
+    /* --- added in core 0.10.0 --- the running game's Scenario, a root for read ("game._Mypair._Myval2..." with
+     * class "Scenario"); 0 before a game runs */
+    uint64_t (*scenario)(void);
 } fse_host;
 
 typedef int (*fse_plugin_init_fn)(const fse_host *host);
