@@ -63,6 +63,20 @@ pub fn read_mem(addr: usize, len: usize) -> Option<Vec<u8>> {
     (ok != 0 && got == len).then_some(buf)
 }
 
+/// writes bytes of this process at `addr`; false if it isn't writable
+pub fn write_mem(addr: usize, bytes: &[u8]) -> bool {
+    use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    if addr < 0x10000 || read_mem(addr, bytes.len()).is_none() {
+        return false;
+    }
+    let mut done = 0usize;
+    let ok = unsafe {
+        WriteProcessMemory(GetCurrentProcess(), addr as *const _, bytes.as_ptr() as *const _, bytes.len(), &mut done)
+    };
+    ok != 0 && done == bytes.len()
+}
+
 fn read_u64(addr: usize) -> Option<u64> {
     read_mem(addr, 8).map(|b| u64::from_le_bytes(b.try_into().unwrap()))
 }
@@ -493,6 +507,43 @@ impl Types {
                 m.insert(n, self.decode(addr + off as usize, &ft, depth - 1));
             }
         }
+    }
+
+    /// writes a number or boolean into a primitive (or enum, or one-number wrapper) field along `path`: for this
+    /// peer's own settings (camera, UI). Writing simulation state desyncs multiplayer and can break the game.
+    pub fn write(&self, addr: usize, class: &str, path: &str, value: &Value) -> Result<(), String> {
+        let start = *self.by_name.get(class).ok_or(format!("no class {class} in this build"))?;
+        let (mut addr, mut t) = self.walk(addr, self.ty(start), path)?;
+        // (a class around one number: that number; an enum: its underlying integer)
+        for _ in 0..4 {
+            match &t {
+                Ty::Class(ci, _, _) => {
+                    let m = self.members(*ci);
+                    let [(n, off, ft)] = m.as_slice() else { return Err(format!("{} is not a number", self.type_name(&t))) };
+                    if n.starts_with('^') {
+                        return Err(format!("{} is not a number", self.type_name(&t)));
+                    }
+                    addr += *off as usize;
+                    t = self.ty(*ft);
+                }
+                Ty::Enum(_, u, _) => t = self.ty(*u),
+                _ => break,
+            }
+        }
+        let Ty::Prim(k) = t else { return Err(format!("{} is not a number", self.type_name(&t))) };
+        use PrimitiveKind::*;
+        let n = value.as_f64().or_else(|| value.as_bool().map(|b| b as u8 as f64)).ok_or("give a number or boolean")?;
+        let bytes: Vec<u8> = match k {
+            Bool8 | Bool32 | Bool64 => { let mut v = vec![0u8; prim_size(k) as usize]; v[0] = (n != 0.0) as u8; v }
+            Char | RChar | I8 | UChar | U8 => vec![n as i64 as u8],
+            I16 | Short | WChar | RChar16 | U16 | UShort => (n as i64 as u16).to_le_bytes().to_vec(),
+            I32 | Long | HRESULT | U32 | ULong | RChar32 => (n as i64 as u32).to_le_bytes().to_vec(),
+            I64 | Quad | U64 | UQuad => (n as i64).to_le_bytes().to_vec(),
+            F32 => (n as f32).to_le_bytes().to_vec(),
+            F64 => n.to_le_bytes().to_vec(),
+            _ => return Err(format!("can't write a {k:?}")),
+        };
+        write_mem(addr, &bytes).then_some(()).ok_or(format!("can't write at {addr:#x}"))
     }
 
     fn prim(&self, addr: usize, k: PrimitiveKind) -> Option<Value> {

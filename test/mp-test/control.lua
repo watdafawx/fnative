@@ -34,6 +34,7 @@ script.on_event("fse-event", function(e)
 end)
 
 script.on_event("fse-sync", function(e)
+  if e.key:find("^mp%-big") then storage.big = (storage.big or "") .. "/" .. #e.data end
   if e.key == "mp-clock" then
     storage.synced[#storage.synced + 1] = { player = e.player_index, data = e.data, tick = game.tick }
   end
@@ -46,11 +47,14 @@ script.on_nth_tick(30, function(e)
     if native and native.local_player() == p.index and e.tick % 120 == 0 then
       local now = native.call("std", "now") or "?"
       native.sync("mp-clock", now)
+      if e.tick == 600 then
+        native.sync("mp-big", string.rep("abcdefghij", 20000)) -- (200 KB: in parts)
+      end
     end
   end
   if e.tick % 300 == 0 then
-    local text = ("tick %d rotations %d synced %d players %d"):format(e.tick, storage.rotations, #storage.synced,
-      #game.connected_players)
+    local text = ("tick %d rotations %d synced %d players %d big %s"):format(e.tick, storage.rotations, #storage.synced,
+      #game.connected_players, tostring(storage.big))
     -- (every peer writes its own file: the server as peer 0, each player's peer under its player index)
     helpers.write_file("mp-server.txt", text .. "\n", true, 0)
     for _, p in pairs(game.connected_players) do

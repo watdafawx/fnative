@@ -14,6 +14,7 @@ local function run()
   end
   local s = game.surfaces[1]
   local ins = s.create_entity({ name = "inserter", position = { 10.5, 7.5 }, force = "player" })
+  storage.ins = ins
   local chest = s.create_entity({ name = "iron-chest", position = { -3.5, 4.5 }, force = "player" })
 
   local t, err = native.read(ins, "entityTarget.target")
@@ -111,6 +112,18 @@ script.on_event(defines.events.on_tick, function(e)
     local _, local_err = native.sync("x", "y")
     check("native.sync needs a player (headless has none)", local_err ~= nil, local_err)
     check("no local player headless", native.local_player() == nil)
+    local root = native.root()
+    check("root objects", root and root.game and root.game.type == "Game" and root.map and root.map.type == "Map"
+          and root.local_player == nil, root)
+    local ts = native.tick_stats()
+    check("tick stats", ts and ts.last_ms >= 0 and ts.avg_ms >= 0, ts)
+    local ins = storage.ins
+    local w, werr = native.write(ins, "entityTarget.target.heldStack.count", 0)
+    check("write a number (and read it back)", w and native.read(ins, "entityTarget.target.heldStack.count") == 0, werr)
+    local _, nerr = native.write(ins, "entityTarget.target.position", 1)
+    check("writing a non-number is refused", nerr ~= nil, nerr)
+    local _, serr = native.send_action("OpenCharacterGui")
+    check("send_action needs a player", serr ~= nil, serr)
     lines[#lines + 1] = failed == 0 and "ALL PASS" or (failed .. " FAILED")
     helpers.write_file("engine-api.txt", table.concat(lines, "\n") .. "\n", false)
   end

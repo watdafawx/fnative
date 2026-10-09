@@ -54,6 +54,24 @@ commands.add_command("fse-sync", "used by the FSE loader (native.sync); not for 
   script.raise_event("fse-sync", { player_index = c.player_index, key = name, data = data })
 end)
 
+-- "/fse-sync-part <id> <i> <n> <name> <data>": one part of a big native.sync; raised once all n are there
+commands.add_command("fse-sync-part", "used by the FSE loader (native.sync); not for typing", function(c)
+  local id, i, n, name, data = (c.parameter or ""):match("^(%d+) (%d+) (%d+) (%S+) ?(.*)$")
+  if not id or not c.player_index then return end
+  storage.parts = storage.parts or {}
+  local key = c.player_index .. ":" .. id
+  local t = storage.parts[key] or { n = tonumber(n), got = 0, list = {} }
+  storage.parts[key] = t
+  if not t.list[tonumber(i)] then
+    t.list[tonumber(i)] = data
+    t.got = t.got + 1
+  end
+  if t.got == t.n then
+    storage.parts[key] = nil
+    script.raise_event("fse-sync", { player_index = c.player_index, key = name, data = table.concat(t.list) })
+  end
+end)
+
 script.on_event(defines.events.on_player_joined_game, function(e)
   if not game.is_multiplayer() or not storage.signature then return end -- (a game without fse: nothing to compare)
   storage.pending[e.player_index] = e.tick
@@ -65,6 +83,9 @@ end)
 
 script.on_event(defines.events.on_player_left_game, function(e)
   storage.pending[e.player_index] = nil
+  for key in pairs(storage.parts or {}) do -- (a big sync cut short)
+    if key:match("^(%d+):") == tostring(e.player_index) then storage.parts[key] = nil end
+  end
 end)
 
 script.on_nth_tick(60, function(e)

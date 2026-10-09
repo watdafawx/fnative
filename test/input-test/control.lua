@@ -48,7 +48,14 @@ script.on_event(defines.events.on_tick, function(e)
     say((p.opened_gui_type ~= defines.gui_type.controller and "PASS" or "FAIL") .. " a blocked action does nothing")
     native.call("input", "block", '{"types": []}')
     say("  status: " .. tostring(native.call("input", "status")))
-    phase = 3
+    -- B3: the same action sent from Lua through the game's input pipeline
+    local ok, err = native.send_action("OpenCharacterGui")
+    say((ok and "PASS" or "FAIL") .. " send_action accepted: " .. tostring(err))
+    phase = 4
+    phase_tick = e.tick
+  elseif phase == 4 and e.tick > phase_tick + 30 then
+    say((p.opened_gui_type == defines.gui_type.controller and "PASS" or "FAIL") .. " a sent action opens the inventory")
+    phase = 5
     finish()
   elseif phase == 1 and e.tick > 60 + 600 then
     say("FAIL the inventory never opened (the key press didn't reach the game)")

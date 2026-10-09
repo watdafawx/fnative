@@ -354,6 +354,29 @@ unsafe extern "C" fn n_read(l: *mut LuaState) -> c_int {
     }
 }
 
+/// native.write(target, path, value) -> true | nil, error : writes a number or boolean into an engine object's field
+/// (for this peer's own state: camera, UI). Writing simulation state desyncs multiplayer and can break the game.
+unsafe extern "C" fn n_write(l: *mut LuaState) -> c_int {
+    let (addr, class) = match target(l, 1) { Ok(t) => t, Err(e) => return fail(l, &e) };
+    let Some(path) = arg_str(l, 2).filter(|p| !p.is_empty()) else { return fail(l, "native.write(target, path, value)") };
+    let value = match (api().type_of)(l, 3) {
+        LUA_TBOOLEAN => serde_json::json!((api().toboolean)(l, 3) != 0),
+        LUA_TNUMBER => serde_json::json!(arg_num(l, 3).unwrap_or(0.0)),
+        _ => return fail(l, "native.write: the value must be a number or boolean"),
+    };
+    let r = crate::engine::with_types(|t| {
+        let class = if class.is_empty() { t.dynamic(addr).map(|d| d.1).ok_or("not an engine object")? } else { class };
+        t.write(addr, &class, &path, &value)
+    });
+    match r {
+        Ok(()) => {
+            (api().pushboolean)(l, 1);
+            1
+        }
+        Err(e) => fail(l, &e),
+    }
+}
+
 /// native.layout(class) -> {name, size, fields = {{name, offset, type}}} : an engine class as this build has it
 /// (bases as fields named "^Base")
 unsafe extern "C" fn n_layout(l: *mut LuaState) -> c_int {
@@ -420,6 +443,10 @@ const FUNCTIONS: &[(&CStr, CFunction)] = &[
     (c"metatable", n_metatable),
     (c"events", n_events),
     (c"sync", crate::mp::n_sync),
+    (c"write", n_write),
+    (c"send_action", crate::mp::n_send_action),
+    (c"root", crate::mp::n_root),
+    (c"tick_stats", crate::mp::n_tick_stats),
     (c"local_player", crate::mp::n_local_player),
     (c"on_tick_end", crate::mp::n_on_tick_end),
 ];

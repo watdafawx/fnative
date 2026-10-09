@@ -129,6 +129,10 @@ end
 | `native.metatable(object)` | a game object's metatable, past its protection (`fse-std`'s `extend` uses it) |
 | `native.sync(key, data)` | sends `data` (a string) from this peer's player to every peer: the `fse-sync` event `{player_index, key, data}` (multiplayer, below) |
 | `native.local_player()` | this peer's own player index, or nil (headless server, menu) |
+| `native.send_action(kind, text?)` | an input action as this peer's player makes it (kinds without data, like `OpenCharacterGui`, or with a text), through the game's own pipeline: every peer applies it |
+| `native.root()` | the game's root objects as pointers for `native.read`: `{scenario, game, map, local_player}` |
+| `native.write(target, path, value)` | writes a number or boolean field: for this peer's own state (camera, UI); writing simulation state desyncs multiplayer |
+| `native.tick_stats()` | how long the update step took: `{last_ms, avg_ms, max_ms}` (this peer's own) |
 | `native.events(since?)` | events plugins sent after `since`: `{ {seq, plugin, name, data} }, newest`; without `since` just `newest` |
 
 Rules: native functions never raise Lua errors; they return `nil, message`. Inputs and outputs are strings (JSON by
