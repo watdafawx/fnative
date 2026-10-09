@@ -1,0 +1,23 @@
+{
+ "functions": [
+  "?add@Description@@QEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0E@Z",
+  "??2@YAPEAX_K@Z",
+  "?addToDescription@Entity@@UEBAXAEAVDescription@@@Z",
+  "?addToDescription@EntityWithHealth@@UEBAXAEAVDescription@@@Z",
+  "?addToDescription@EntityWithOwner@@UEBAXAEAVDescription@@@Z",
+  "?addToDescription@Character@@UEBAXAEAVDescription@@@Z",
+  "?addToDescription@Car@@UEBAXAEAVDescription@@@Z",
+  "?addToDescription@SpiderVehicle@@UEBAXAEAVDescription@@@Z"
+ ],
+ "classes": {
+  "Entity": [
+   "prototype"
+  ],
+  "PrototypeBase": [
+   "name"
+  ],
+  "EntityWithOwner": [
+   "unitNumber"
+  ]
+ }
+}

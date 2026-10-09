@@ -356,6 +356,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fnative-entityinfo"
+version = "0.1.0"
+dependencies = [
+ "fnative-plugin",
+ "retour",
+ "serde_json",
+]
+
+[[package]]
 name = "fnative-fixes"
 version = "0.1.0"
 dependencies = [

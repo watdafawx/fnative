@@ -40,7 +40,7 @@ Everything goes to `dist\`:
 |---|---|
 | `factorio-native.exe` | the launcher |
 | `fnative.dll` | the core, loaded into the game |
-| `plugins\*.dll` | the plugins (`py`, `std`, `web`, `profiler`, `fixes`, `diag`, and `hello` if clang-cl was found) |
+| `plugins\*.dll` | the plugins (`py`, `std`, `web`, `profiler`, `fixes`, `diag`, `entityinfo`, and `hello` if clang-cl was found) |
 | `fnative.env` | your settings, created on the first build and never overwritten |
 
 ### 3. Start the game through the launcher
@@ -183,6 +183,7 @@ Add `"? fnative-std"` to your mod's dependencies if it should work without it, a
 | `profiler` | times engine functions by name (`dist\plugins\profiler.json`): Game::update, entity updates by kind, belts, electric networks, robots, pathfinder, Lua events. Only between `profiler.start` and `profiler.stop` |
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
 | `diag` | off unless `FNATIVE_DIAG=1`: logs the message and stack of every engine error |
+| `entityinfo` | a mod's own rows in the game's info panel for the entity under the cursor (below) |
 | `hello` | the C example |
 
 ### Engine fixes
@@ -194,6 +195,26 @@ Add `"? fnative-std"` to your mod's dependencies if it should work without it, a
 - **gc-idle-skip**: every tick the engine forces a Lua GC step in each mod's Lua state, even states that allocated
   nothing since their last cycle, so they re-walk their whole heap again and again. The fix skips the step only for
   a state that is between cycles and whose memory hasn't changed. With ~400 mods this halved the GC time per tick.
+
+### Rows in the game's entity info panel (`entityinfo`)
+
+The panel under the minimap that describes the entity under the cursor is the engine's own; no mod API reaches it.
+`entityinfo` lets a mod add rows to it for an entity of its choice, in the game's look (rich text works: `[item=...]`,
+`[color=...]`):
+
+```lua
+native.call("entityinfo", "set", helpers.table_to_json({ name = ent.name, unit = ent.unit_number,
+  rows = { { "Doing", "building" }, { "Weapon", "[item=submachine-gun] range 18" } } }))
+native.call("entityinfo", "clear", helpers.table_to_json({ unit = ent.unit_number }))   -- or "{}" for all
+native.call("entityinfo", "status", "")   -- {"hooked": [...], "entities": n, "shown": n}
+```
+
+The panel is rebuilt every frame while the entity is hovered, so rows a mod sets again (say every 30 ticks, from
+`on_selected_entity_changed` on) stay current. Only entities with a unit number (anything with an owner: buildings,
+characters, vehicles) can have rows. Without the loader `native` is nil: keep a Lua fallback (AI Crew shows its own
+card then). How: the virtual `addToDescription` of Entity, EntityWithHealth, EntityWithOwner, Character, Car and
+SpiderVehicle is hooked (not every override calls its base); after the outermost one ran, the rows go in through
+`Description::add`, the call the engine's own rows use.
 
 ## How it works
 
