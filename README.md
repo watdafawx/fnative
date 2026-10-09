@@ -41,7 +41,7 @@ Every mod checks for fse first and does nothing (or falls back) without it.
 Settings go in `fse\fse.env` (optional, see the comments in it). The log is `fse\fse.log`. A good start:
 
 ```
-fse 0.9.0 loading
+fse 0.10.0 loading
 105032 engine symbols read in 61.48ms
 game build EAAB184A...-1 (known)
 plugin ...\fse_std.dll: init ok
