@@ -11,10 +11,12 @@
 //! - never keep a `lua_State` pointer past the call.
 
 mod engine;
+mod inject;
 mod json;
 mod log;
 mod lua;
 mod plugins;
+mod restart;
 mod symbols;
 
 use std::ffi::c_void;
@@ -74,6 +76,10 @@ fn init() -> Result<(), String> {
     let _ = SYMBOLS.set(syms);
     let _ = API.set(api);
     lua::install_hooks()?;
+    // (a restart without it still works, just without fnative in the new game)
+    if let Err(e) = restart::install_hook() {
+        log::line(&format!("restart hook: {e}"));
+    }
     plugins::load_all();
     log::line(&format!("ready in {:.2?}", started.elapsed()));
     Ok(())

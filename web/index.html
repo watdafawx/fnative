@@ -33,6 +33,13 @@
       (Game::update holds most entity updates). Mod scripts run in LuaEventDispatcher::dispatch.
       Functions come from <code>plugins/profiler.json</code>.</p>
   </fieldset>
+  <fieldset><legend>Main menu buttons</legend>
+    <div class="row">
+      <label><input type="checkbox" id="ovHub"> fnative hub</label>
+      <label><input type="checkbox" id="ovStartup"> startup time</label>
+      <span class="muted">the buttons over the game's top-left corner (saved for the next start)</span>
+    </div>
+  </fieldset>
   <fieldset><legend>Remote interfaces</legend><div id="ifaces" class="muted">...</div></fieldset>
 </main>
 <script src="common.js"></script>
@@ -76,6 +83,10 @@ if (!needToken()) {
   $("stop").onclick = () => api("POST", "/api/profiler/stop").then(profile);
   $("spawn").onclick = () => game("agent", "spawn", $("agentName").value).then(status).catch((e) => alert(e.message));
   $("say").onclick = () => game("agent", "say", $("agentName").value, $("sayText").value).catch((e) => alert(e.message));
+  const ovSet = (o) => { $("ovHub").checked = o.hub; $("ovStartup").checked = o.startup; };
+  for (const [id, key] of [["ovHub", "hub"], ["ovStartup", "startup"]])
+    $(id).onchange = () => api("POST", "/api/overlay", { [key]: $(id).checked }).then(ovSet).catch((e) => alert(e.message));
+  api("GET", "/api/overlay").then(ovSet).catch(() => {});
   status(); profile(); interfaces();
   setInterval(status, 2000); setInterval(profile, 1000);
 }

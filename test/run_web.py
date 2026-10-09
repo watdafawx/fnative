@@ -72,6 +72,9 @@ try:
     code, prof = req("GET", "/api/profile?consumer=test")
     print("profile:", code, prof.get("ticks"), "ticks;", [(f["name"], round(f["ms_per_tick"], 3)) for f in prof.get("functions", [])[:4]])
     print("native py:", req("POST", "/api/native/hello/reverse", "abc"))
+    was = req("GET", "/api/overlay")[1]
+    print("overlay:", was, "->", req("POST", "/api/overlay", {"startup": not was["startup"]}), "->",
+          req("POST", "/api/overlay", was))
 finally:
     game.kill()
 print("--- fnative.log tail")

@@ -103,7 +103,7 @@ One `KEY=value` per line. The launcher reads it at every start and passes it to 
 | `FNATIVE_LOG` | `dist\fnative.log` | the log file |
 | `FNATIVE_WEB_PORT` | 8790 | the local web API's port (it takes the first free one of 8790-8799) |
 | `FNATIVE_PANEL=0` | | open pages in the browser instead of the panel over the game |
-| `FNATIVE_OVERLAY=0` | | no hub buttons over the main menu |
+| `FNATIVE_OVERLAY=0` | | no hub buttons over the main menu (to hide just one, use the dashboard's *Main menu buttons*) |
 | `FNATIVE_STD_WHEEL=0` | | don't watch the mouse wheel (the `std` plugin's wheel events) |
 | `FNATIVE_FIXES=0`, `FNATIVE_FIX_<NAME>=0` | | turn off all engine fixes, or one |
 | `FNATIVE_DIAG=1` | | log every engine error the game raises, even ones it catches itself |

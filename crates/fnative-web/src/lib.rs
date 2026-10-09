@@ -10,6 +10,7 @@
 //!   GET  /api/status                    core build, uptime, whether the game thread is answering
 //!   GET  /api/profile?consumer=web      the engine profiler's numbers since this consumer's last call
 //!   POST /api/profiler/start | stop
+//!   GET  /api/overlay | POST {"hub": bool, "startup": bool}   which corner buttons show over the main menu
 //!   POST /api/native/<plugin>/<fn>      body -> a native function (threadsafe ones only), its output back
 //!   POST /api/game                      {"interface": "...", "function": "...", "args": [...]}: run on the game
 //!                                       thread by the fnative-bridge mod (remote.call), its answer back (10 s max)
@@ -51,7 +52,7 @@ fn token() -> String {
     s
 }
 
-fn home() -> std::path::PathBuf {
+pub(crate) fn home() -> std::path::PathBuf {
     std::env::var("FNATIVE_HOME").map(std::path::PathBuf::from).unwrap_or_default()
 }
 
@@ -147,6 +148,14 @@ fn handle(mut req: Request, token: &str) {
                 Err(e) => send_json(req, 502, &json!({"error": e})),
             }
         }
+        (Method::Get, "/api/overlay") => send_json(req, 200, &overlay::settings()),
+        (Method::Post, "/api/overlay") => match serde_json::from_str::<Value>(&body) {
+            Ok(v) => match overlay::set(&v) {
+                Ok(()) => send_json(req, 200, &overlay::settings()),
+                Err(e) => send_json(req, 500, &json!({"error": e.to_string()})),
+            },
+            Err(e) => send_json(req, 400, &json!({"error": e.to_string()})),
+        },
         (Method::Post, p) if p.starts_with("/api/native/") => {
             let rest = &p["/api/native/".len()..];
             let Some((plugin, f)) = rest.split_once('/') else {

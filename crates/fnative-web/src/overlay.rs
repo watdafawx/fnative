@@ -6,9 +6,10 @@
 //!   [ fnative hub ][ started in 1 min 31 s ]
 //! The first opens the dashboard, the second the startup report (startup.html), in the panel (panel.rs). The startup
 //! time is read from the game's log ("Factorio initialised", seconds since the game started) once it appears.
+//! Either button can be turned off from the dashboard (overlay.json beside the launcher: {"hub": .., "startup": ..}).
 //! The thread here also runs the panel's window, with or without the buttons.
 
-use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
@@ -34,6 +35,8 @@ static IN_GAME: OnceLock<fn() -> bool> = OnceLock::new();
 static STARTUP: Mutex<Option<f64>> = Mutex::new(None);
 static STARTED_AT: OnceLock<std::time::SystemTime> = OnceLock::new();
 static TICKS: AtomicUsize = AtomicUsize::new(0);
+static SHOW_HUB: AtomicBool = AtomicBool::new(true);
+static SHOW_STARTUP: AtomicBool = AtomicBool::new(true);
 const WM_MOUSELEAVE: u32 = 0x02A3;
 const HUB_W: i32 = 112;
 const START_W: i32 = 190;
@@ -47,8 +50,46 @@ fn rgb(r: u8, g: u8, b: u8) -> u32 {
     r as u32 | (g as u32) << 8 | (b as u32) << 16
 }
 
+fn settings_path() -> std::path::PathBuf {
+    crate::home().join("overlay.json")
+}
+
+/// {"hub": bool, "startup": bool}: which buttons show
+pub fn settings() -> serde_json::Value {
+    serde_json::json!({"hub": SHOW_HUB.load(Ordering::Relaxed), "startup": SHOW_STARTUP.load(Ordering::Relaxed)})
+}
+
+/// takes the keys given in `v` (the others stay), saves them for the next start
+pub fn set(v: &serde_json::Value) -> std::io::Result<()> {
+    if let Some(b) = v.get("hub").and_then(serde_json::Value::as_bool) {
+        SHOW_HUB.store(b, Ordering::Relaxed);
+    }
+    if let Some(b) = v.get("startup").and_then(serde_json::Value::as_bool) {
+        SHOW_STARTUP.store(b, Ordering::Relaxed);
+    }
+    std::fs::write(settings_path(), settings().to_string())
+}
+
+/// the buttons showing now, left to right: (0 hub / 1 startup, x, width)
+fn segments() -> Vec<(i32, i32, i32)> {
+    let mut v = Vec::new();
+    let mut x = 0;
+    if SHOW_HUB.load(Ordering::Relaxed) {
+        v.push((0, x, HUB_W));
+        x += HUB_W - 2;
+    }
+    if SHOW_STARTUP.load(Ordering::Relaxed) && STARTUP.lock().unwrap().is_some() {
+        v.push((1, x, START_W + 2));
+    }
+    v
+}
+
 fn width() -> i32 {
-    if STARTUP.lock().unwrap().is_some() { HUB_W + START_W } else { HUB_W }
+    segments().last().map(|&(_, x, w)| x + w).unwrap_or(0)
+}
+
+fn segment_at(x: i32) -> i32 {
+    segments().iter().find(|&&(_, sx, w)| x >= sx && x < sx + w).map(|s| s.0).unwrap_or(-1)
 }
 
 fn fmt_secs(s: f64) -> String {
@@ -163,12 +204,13 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
                 return 0;
             }
             let fg = GetForegroundWindow();
-            let show = IsWindowVisible(game) != 0 && IsIconic(game) == 0 && (fg == game || fg == hwnd)
+            let w = width();
+            let show = w > 0 && IsWindowVisible(game) != 0 && IsIconic(game) == 0 && (fg == game || fg == hwnd)
                 && !IN_GAME.get().map(|f| f()).unwrap_or(false);
             if show {
                 let mut p = POINT { x: 12, y: 12 };
                 ClientToScreen(game, &mut p);
-                SetWindowPos(hwnd, std::ptr::null_mut(), p.x, p.y, width(), H, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                SetWindowPos(hwnd, std::ptr::null_mut(), p.x, p.y, w, H, SWP_NOACTIVATE | SWP_SHOWWINDOW);
             } else {
                 ShowWindow(hwnd, SW_HIDE);
             }
@@ -178,16 +220,17 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
             let mut ps: PAINTSTRUCT = std::mem::zeroed();
             let dc = BeginPaint(hwnd, &mut ps);
             let hover = HOVER.load(Ordering::Relaxed);
-            paint_segment(dc, 0, HUB_W, "fnative  hub", hover == 0);
-            if let Some(s) = *STARTUP.lock().unwrap() {
-                paint_segment(dc, HUB_W - 2, START_W + 2, &format!("started in {}", fmt_secs(s)), hover == 1);
+            for (kind, x, w) in segments() {
+                let text = if kind == 0 { "fnative  hub".to_string() }
+                           else { format!("started in {}", fmt_secs(STARTUP.lock().unwrap().unwrap_or(0.0))) };
+                paint_segment(dc, x, w, &text, hover == kind);
             }
             EndPaint(hwnd, &ps);
             0
         }
         WM_MOUSEMOVE => {
             let x = (lp & 0xffff) as i16 as i32;
-            let seg = if x < HUB_W { 0 } else { 1 };
+            let seg = segment_at(x);
             if HOVER.swap(seg, Ordering::Relaxed) != seg {
                 let mut t = TRACKMOUSEEVENT { cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32, dwFlags: TME_LEAVE,
                                               hwndTrack: hwnd, dwHoverTime: 0 };
@@ -203,7 +246,11 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
         }
         WM_LBUTTONUP => {
             let x = (lp & 0xffff) as i16 as i32;
-            crate::panel::open(if x < HUB_W { "" } else { "startup.html" });
+            match segment_at(x) {
+                0 => crate::panel::open(""),
+                1 => crate::panel::open("startup.html"),
+                _ => {}
+            }
             0
         }
         WM_MOUSEACTIVATE => MA_NOACTIVATE as LRESULT, // (a click must not take focus from the game)
@@ -216,6 +263,9 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
 pub fn start(buttons: bool, in_game: fn() -> bool) {
     let _ = IN_GAME.set(in_game);
     let _ = STARTED_AT.set(std::time::SystemTime::now());
+    if let Some(v) = std::fs::read_to_string(settings_path()).ok().and_then(|t| serde_json::from_str(&t).ok()) {
+        let _ = set(&v);
+    }
     std::thread::Builder::new().name("fnative-overlay".into()).spawn(move || unsafe {
         let game = loop {
             let g = find_game();
