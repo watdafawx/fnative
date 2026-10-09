@@ -241,7 +241,7 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 | plugin | gives |
 |---|---|
 | `py` | Python functions from Lua (above) |
-| `std` | mouse position and buttons in GUI pixels, the wheel (with a lease so the game camera doesn't zoom while your GUI uses it), modifier keys, window size and focus, clipboard, real time, opening http(s) links |
+| `std` | `play_sound("__mod__/x.wav")` (a .wav from an unzipped mod, or under script-output, on this computer only), mouse position and buttons in GUI pixels, the wheel (with a lease so the game camera doesn't zoom while your GUI uses it), modifier keys, window size and focus, clipboard, real time, opening http(s) links |
 | `web` | a local HTTP API and pages on `127.0.0.1` (token in `fse\web-token.txt`): status, the profiler, native calls, `remote.call` through `fse-bridge`; `web.open(page)` shows a page in a panel over the game |
 | `profiler` | times engine functions by name (`fse\plugins\profiler.json`): Game::update, entity updates by kind, belts, electric networks, robots, pathfinder, Lua events. Only between `profiler.start` and `profiler.stop` |
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
@@ -279,10 +279,19 @@ A hook: `fn`, `event`, `args` (`arg`: which argument, 0 is `this`; `path`, `clas
 for the integer itself), `every` (send every Nth call), `after` (read the arguments after the call), `result` (add
 the return value). `hooks.enable` / `hooks.disable` `{event}` switch one; `hooks.status` lists them with call counts.
 Hooks can also be listed in `fse\plugins\hooks.json` (`{"hooks": [...]}`), installed before the game starts.
+
+Presets, tested ones ready to use: `{preset = "console"}` (every console message, `{message = LocalisedString,
+from}`: the game's own lines too, which Lua never sees), `"expansion"` (where biters pick their next base:
+`{position, from}`), `"save"` (local: the folder and name a save goes to), `"app-state"` (local: the game's screen
+stack after a change: main menu, loading, in game). Other fields override a preset's.
 Only functions whose arguments are all integers or pointers (at most 8) can be hooked; prefer functions of the
 update and Lua thread. Events reach Lua at the next poll, never inside engine code.
 
 ### Rows in the game's entity info panel (`entityinfo`)
+
+Also for prototypes: `entityinfo.set_proto {type = "item", name = "iron-plate", rows = {{"Made here", "120/min"}}}`
+(`type`: item, recipe, technology, fluid, entity, or any) adds rows wherever the game describes that prototype:
+tooltips in inventories and the crafting menu, Factoriopedia. `clear_proto {type, name}` (or nothing: all).
 
 The panel under the minimap that describes the entity under the cursor is the engine's own; no mod API reaches it.
 `entityinfo` lets a mod add rows to it for an entity of its choice, in the game's look (rich text works: `[item=...]`,

@@ -12,6 +12,10 @@
 //!           the update also arrive as that tick's "fse-event" on every multiplayer peer (fse-std)
 //! Event data: {"args": {...}, "result": n, "calls": total}.
 //!
+//! Presets: {"preset": "console"} (every console message: {message = LocalisedString, from = player index from 0}),
+//! "expansion" (where biters pick their next base: {position, from}), "save" (local: the path saved to), "app-state"
+//! (local: the game's screen stack after a change: main menu, loading, in game...). Other fields override.
+//!
 //! Hooks come from plugins/hooks.json ({"hooks": [...]}, installed before the game starts) or from Lua at any time:
 //!   hooks.add      a hook (JSON above) -> its event name   (patching while the game runs: fine for functions of the
 //!                  game's update and Lua thread; avoid ones the render thread runs)
@@ -185,8 +189,42 @@ fn event_of(text: &str) -> Result<String, String> {
     v["event"].as_str().map(str::to_string).ok_or("no event".into())
 }
 
+/// ready-made hooks: {"preset": name} (plus any field to override, e.g. "event")
+const PRESETS: &str = r#"{
+  "console": {"fn": "?add@OutputConsole@@AEAAXAEBVLocalisedString@@PEBVPlayer@@AEBUPrintSettings@@$$QEAV?$vector@VSavedSpecialItemReference@@V?$allocator@VSavedSpecialItemReference@@@std@@@std@@@Z",
+              "event": "console",
+              "args": [{"arg": 1, "class": "LocalisedString", "depth": 4, "as": "message"},
+                       {"arg": 2, "class": "Player", "path": "index", "as": "from"}]},
+  "expansion": {"fn": "?findNewBasePosition@Commander@@AEBA?AV?$Optional@VMapPosition@@U?$OptionalEmptyValue@VMapPosition@@@@@@IAEBVMapPosition@@@Z",
+                "event": "expansion", "after": true,
+                "args": [{"arg": 1, "class": "Optional<MapPosition,OptionalEmptyValue<MapPosition> >", "depth": 2, "as": "position"},
+                         {"arg": 3, "class": "MapPosition", "as": "from"}]},
+  "save": {"fn": "?saveAs@Scenario@@QEAAXAEBUPath@Filesystem@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0PEAVProgressObserver@@W4SaveType@@@Z",
+           "event": "save", "local": true,
+           "args": [{"arg": 1, "class": "Filesystem::Path", "depth": 2, "as": "path"},
+                    {"arg": 2, "class": "std::basic_string<char,std::char_traits<char>,std::allocator<char> >", "as": "name"}]},
+  "app-state": {"fn": "?changeStateInternal@AppManager@@AEAAXXZ",
+                "event": "app-state", "local": true, "after": true,
+                "args": [{"arg": 0, "class": "AppManager", "path": "stateStack", "depth": 1, "as": "states"}]}
+}"#;
+
+/// a hook's JSON with its preset filled in
+fn expand(text: &str) -> Result<Spec, String> {
+    let mut v: Value = serde_json::from_str(text).map_err(|e| format!("bad hook: {e}"))?;
+    if let Some(name) = v.get("preset").and_then(|p| p.as_str()).map(str::to_string) {
+        let presets: Value = serde_json::from_str(PRESETS).map_err(|e| e.to_string())?;
+        let mut base = presets.get(&name).cloned().ok_or(format!("no preset {name} (there are {})",
+            presets.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>().join(", ")).unwrap_or_default()))?;
+        for (k, x) in v.as_object().into_iter().flatten().filter(|(k, _)| *k != "preset") {
+            base[k] = x.clone();
+        }
+        v = base;
+    }
+    serde_json::from_value(v).map_err(|e| format!("bad hook: {e}"))
+}
+
 fp::export!(f_add, |_, text| {
-    let spec: Spec = serde_json::from_str(text).map_err(|e| format!("bad hook: {e}"))?;
+    let spec = expand(text)?;
     let name = spec.function.clone();
     add(spec).inspect_err(|e| SKIPPED.lock().unwrap().push((name, e.clone())))
 });
@@ -210,7 +248,7 @@ fp::export!(f_status, |_, _| {
 #[derive(Deserialize)]
 struct Config {
     #[serde(default)]
-    hooks: Vec<Spec>,
+    hooks: Vec<Value>,
 }
 
 #[no_mangle]
@@ -230,7 +268,14 @@ pub unsafe extern "C" fn fse_plugin_init(host: *const fp::Host) -> i32 {
     if let Ok(text) = std::fs::read_to_string(dir.join("hooks.json")) {
         match serde_json::from_str::<Config>(&text) {
             Ok(cfg) => {
-                for spec in cfg.hooks {
+                for raw in cfg.hooks {
+                    let spec = match expand(&raw.to_string()) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            fp::log(&format!("hooks.json: {e}"));
+                            continue;
+                        }
+                    };
                     let name = spec.function.clone();
                     if let Err(e) = add(spec) {
                         fp::log(&format!("skipped {name}: {e}"));

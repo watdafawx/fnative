@@ -449,6 +449,15 @@ impl Types {
                 if name.starts_with("std::basic_string<char,") {
                     return self.string(addr).map(Value::String).unwrap_or(Value::Null);
                 }
+                if name.starts_with("std::basic_string<wchar_t,") {
+                    return self.wstring(addr).map(Value::String).unwrap_or(Value::Null);
+                }
+                // (a unique_ptr is its pointer)
+                if name.starts_with("std::unique_ptr<") {
+                    if let Ok((a, pt)) = self.walk(addr, t.clone(), "_Mypair._Myval2") {
+                        return self.decode(a, &pt, depth);
+                    }
+                }
                 if name.starts_with("std::vector<") {
                     let first = self.vector(addr, t);
                     let n = match (&first, read_u64(addr + 8)) {
@@ -574,6 +583,19 @@ impl Types {
         }
         let data = if cap >= 16 { read_u64(addr)? as usize } else { addr };
         read_mem(data, size).map(|b| String::from_utf8_lossy(&b).into_owned())
+    }
+
+    /// an MSVC std::wstring: 8 inline UTF-16 units or a heap pointer, then size and capacity in units
+    fn wstring(&self, addr: usize) -> Option<String> {
+        let size = read_u64(addr + 16)? as usize;
+        let cap = read_u64(addr + 24)? as usize;
+        if cap < size || size > 1 << 20 {
+            return None;
+        }
+        let data = if cap >= 8 { read_u64(addr)? as usize } else { addr };
+        let b = read_mem(data, size * 2)?;
+        let units: Vec<u16> = b.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        Some(String::from_utf16_lossy(&units))
     }
 
     /// an enum value by its name

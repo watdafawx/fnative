@@ -18,6 +18,8 @@ names = ["base", "fse-std", "engine-api-test"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": n in names} for n in
                                                          names + ["elevated-rails", "quality", "space-age"]]}))
 OUT.unlink(missing_ok=True)
+OUT.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy(NATIVE.parent / "mods" / "ai-crew" / "ada-chime.wav", OUT.parent / "fse-test.wav")  # (std.play_sound)
 save = RUN / "engine-api.zip"
 save.unlink(missing_ok=True)
 launch = [str(NATIVE / "dist" / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]

@@ -32,11 +32,9 @@ fn arg(name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
 }
 
-/// --mod-directory, else FACTORIO_MODS, else `<write-data>\mods` as the game's config says
-fn mods_dir() -> Option<PathBuf> {
-    if let Some(d) = arg("--mod-directory").or_else(|| std::env::var("FACTORIO_MODS").ok()) {
-        return Some(d.into());
-    }
+/// the game's write-data folder (saves, script-output, mods by default): from --config, else config-path.cfg and
+/// config.ini as the game reads them, else %APPDATA%\Factorio
+fn write_data() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
     let system = PathBuf::from(std::env::var("APPDATA").ok()?).join("Factorio");
     let expand = |s: &str| PathBuf::from(s.trim()
@@ -48,7 +46,25 @@ fn mods_dir() -> Option<PathBuf> {
         line(&cfg, "config-path=").map(|p| expand(&p)).unwrap_or_else(|| system.join("config")).join("config.ini")
     });
     let ini = std::fs::read_to_string(config).unwrap_or_default();
-    Some(line(&ini, "write-data=").map(|p| expand(&p)).unwrap_or(system).join("mods"))
+    Some(line(&ini, "write-data=").map(|p| expand(&p)).unwrap_or(system))
+}
+
+/// --mod-directory, else FACTORIO_MODS, else `<write-data>\mods`
+fn mods_dir() -> Option<PathBuf> {
+    if let Some(d) = arg("--mod-directory").or_else(|| std::env::var("FACTORIO_MODS").ok()) {
+        return Some(d.into());
+    }
+    Some(write_data()?.join("mods"))
+}
+
+/// FSE_WRITE_DATA and FSE_MODS for plugins (where script-output and the mods really are, for this game's arguments)
+pub fn publish_paths() {
+    if let Some(w) = write_data() {
+        std::env::set_var("FSE_WRITE_DATA", w);
+    }
+    if let Some(m) = mods_dir() {
+        std::env::set_var("FSE_MODS", m);
+    }
 }
 
 fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {

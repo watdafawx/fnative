@@ -7,7 +7,8 @@
   "?addToDescription@EntityWithOwner@@UEBAXAEAVDescription@@@Z",
   "?addToDescription@Character@@UEBAXAEAVDescription@@@Z",
   "?addToDescription@Car@@UEBAXAEAVDescription@@@Z",
-  "?addToDescription@SpiderVehicle@@UEBAXAEAVDescription@@@Z"
+  "?addToDescription@SpiderVehicle@@UEBAXAEAVDescription@@@Z",
+  "?addModInfoToDescription@PrototypeBase@@QEBAXAEAVDescription@@@Z"
  ],
  "classes": {
   "Entity": [

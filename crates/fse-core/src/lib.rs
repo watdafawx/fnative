@@ -91,6 +91,7 @@ fn init() -> Result<(), String> {
         // (a restart without it still works, just without fse in the new game)
         log::line(&format!("restart hook: {e}"));
     }
+    mods::publish_paths();
     plugins::load_all();
     log::line(&format!("ready in {:.2?}", started.elapsed()));
     Ok(())

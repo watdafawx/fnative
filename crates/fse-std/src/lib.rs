@@ -11,9 +11,12 @@
 //!   open(url)    opens an http(s) address in the browser
 //!   wheel_capture(ms)  keep the wheel from the game for the next ms (max 1000; "0" ends it): renew it while the
 //!                cursor is over a view the mod zooms, so the map behind doesn't zoom too
+//!   play_sound(path)  plays a .wav on this computer only (no game state: safe in multiplayer): "__mod__/x.wav" from
+//!                an unzipped mod's folder, or a path under script-output; "" stops it. One sound at a time
 //!   mock(json)   tests: fields given here replace the real input until mock("") (e.g. {"left": true, "x": 100})
 //! All threadsafe. Single player: input differs per machine, so game state driven by it would desync multiplayer.
 
+use std::os::windows::ffi::OsStrExt;
 use std::sync::Mutex;
 
 use fse_plugin as fp;
@@ -191,10 +194,14 @@ fn clipboard_set(text: &str) -> Result<String, String> {
     Ok("ok".into())
 }
 
-/// script-output: FACTORIO_SCRIPT_OUTPUT, else beside the mods folder (FACTORIO_MODS)
+/// script-output: FACTORIO_SCRIPT_OUTPUT, else in the game's write-data folder (FSE_WRITE_DATA, from the core), else
+/// beside the mods folder (FACTORIO_MODS)
 fn script_output() -> std::path::PathBuf {
     if let Ok(p) = std::env::var("FACTORIO_SCRIPT_OUTPUT") {
         return p.into();
+    }
+    if let Ok(w) = std::env::var("FSE_WRITE_DATA") {
+        return std::path::Path::new(&w).join("script-output");
     }
     let mods = std::env::var("FACTORIO_MODS").unwrap_or_else(|_| {
         // (the game's default place: %APPDATA%\Factorio\mods)
@@ -211,6 +218,39 @@ fn read(path: &str) -> Result<String, String> {
     std::fs::read_to_string(script_output().join(p)).map_err(|e| format!("read {path}: {e}"))
 }
 
+/// the mods folder: FSE_MODS (from the core), else --mod-directory, else FACTORIO_MODS, else %APPDATA%\Factorio\mods
+fn mods_dir() -> std::path::PathBuf {
+    if let Ok(m) = std::env::var("FSE_MODS") {
+        return m.into();
+    }
+    let args: Vec<String> = std::env::args().collect();
+    args.iter().position(|a| a == "--mod-directory").and_then(|i| args.get(i + 1)).map(std::path::PathBuf::from)
+        .or_else(|| std::env::var("FACTORIO_MODS").ok().map(Into::into))
+        .unwrap_or_else(|| std::path::PathBuf::from(std::env::var("APPDATA").unwrap_or_default()).join("Factorio").join("mods"))
+}
+
+fn play_sound(path: &str) -> Result<String, String> {
+    use windows_sys::Win32::Media::Audio::{PlaySoundW, SND_ASYNC, SND_FILENAME, SND_NODEFAULT};
+    if path.is_empty() {
+        unsafe { PlaySoundW(std::ptr::null(), std::ptr::null_mut(), 0) };
+        return Ok("stopped".into());
+    }
+    if path.contains("..") || path.contains(':') || std::path::Path::new(path).is_absolute() {
+        return Err("play_sound: \"__mod__/file.wav\" or a path under script-output".into());
+    }
+    let file = match path.strip_prefix("__").and_then(|r| r.split_once("__/")) {
+        Some((m, rest)) => mods_dir().join(m).join(rest),
+        None => script_output().join(path),
+    };
+    if !file.is_file() {
+        return Err(format!("play_sound: no file {}", file.display()));
+    }
+    let w: Vec<u16> = file.as_os_str().encode_wide().chain(Some(0)).collect();
+    let ok = unsafe { PlaySoundW(w.as_ptr(), std::ptr::null_mut(), SND_FILENAME | SND_ASYNC | SND_NODEFAULT) };
+    if ok == 0 { Err(format!("play_sound: {} didn't play (a .wav?)", file.display())) } else { Ok("playing".into()) }
+}
+
+fp::export!(f_play_sound, |_, path| play_sound(path.trim()));
 fp::export!(f_input, |_, _| Ok(input().to_string()));
 fp::export!(f_clip_get, |_, _| clipboard_get());
 fp::export!(f_clip_set, |_, text| clipboard_set(text));
@@ -254,7 +294,7 @@ pub unsafe extern "C" fn fse_plugin_init(host: *const fp::Host) -> i32 {
     }
     for (f, n) in [(f_input as fp::PluginFn, "input"), (f_clip_get, "clipboard_get"), (f_clip_set, "clipboard_set"),
                    (f_now, "now"), (f_read, "read"), (f_mock, "mock"), (f_open, "open"),
-                   (f_wheel_capture, "wheel_capture")] {
+                   (f_wheel_capture, "wheel_capture"), (f_play_sound, "play_sound")] {
         fp::register("std", n, f, fp::THREADSAFE);
     }
     if std::env::var("FSE_STD_WHEEL").map(|v| v != "0").unwrap_or(true) {
