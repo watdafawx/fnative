@@ -22,6 +22,6 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 function needToken() {
   if (TOKEN) return false;
   document.body.innerHTML = `<main class="wrap"><h1><b>f</b>native</h1><p>Open this page with the token:
-    <code>http://127.0.0.1:8790/?token=&lt;contents of web-token.txt beside fse.exe&gt;</code></p></main>`;
+    <code>http://127.0.0.1:8790/?token=&lt;contents of web-token.txt in the fse folder&gt;</code></p></main>`;
   return true;
 }

@@ -1,0 +1,1 @@
+{"name": "mp-test", "version": "0.0.1", "title": "FSE multiplayer test", "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fse-std"]}

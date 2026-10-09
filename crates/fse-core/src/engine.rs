@@ -92,3 +92,29 @@ pub fn field_offset(class: &str, field: &str) -> Option<u64> {
 pub fn class_size(class: &str) -> Option<u64> {
     engine()?.classes.get(class).filter(|c| !c.name.ends_with("(missing)")).map(|c| c.size)
 }
+
+/// the pdb's type index for reading engine objects, made on first use (~0.2 s)
+struct TypesCell(std::sync::Mutex<fe::types::Types>);
+// (only ever used under its mutex; the pdb data it points into is leaked, read-only, for the whole process)
+unsafe impl Send for TypesCell {}
+unsafe impl Sync for TypesCell {}
+static TYPES: OnceLock<Result<TypesCell, String>> = OnceLock::new();
+
+pub fn with_types<R>(f: impl FnOnce(&fe::types::Types) -> Result<R, String>) -> Result<R, String> {
+    let cell = TYPES.get_or_init(|| {
+        let t = std::time::Instant::now();
+        let pdb = std::env::current_exe().map_err(|e| e.to_string())?.with_extension("pdb");
+        let image = unsafe {
+            let base = GetModuleHandleW(std::ptr::null()) as usize;
+            let pe = *((base + 0x3c) as *const u32) as usize;
+            (base, base + *((base + pe + 24 + 56) as *const u32) as usize)
+        };
+        let types = fe::types::Types::open(&pdb, image)?;
+        log::line(&format!("type index read in {:.2?}", t.elapsed()));
+        Ok(TypesCell(std::sync::Mutex::new(types)))
+    });
+    match cell {
+        Ok(c) => f(&c.0.lock().unwrap()),
+        Err(e) => Err(e.clone()),
+    }
+}

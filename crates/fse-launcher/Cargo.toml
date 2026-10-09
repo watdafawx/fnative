@@ -5,7 +5,7 @@ edition = "2021"
 description = "Starts factorio.exe suspended, injects fse.dll, waits for it to be ready, resumes the game"
 
 [[bin]]
-name = "fse"
+name = "fse-launcher"
 path = "src/main.rs"
 
 [dependencies]

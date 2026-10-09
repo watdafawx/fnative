@@ -2,7 +2,7 @@
 
     python native/examples/agent_client.py [name]
 
-Needs the game started through fse.exe with the fse-bridge and fse-agent mods enabled.
+Needs FSE installed (or the game started through dist/fse-launcher.exe) with the fse-bridge and fse-agent mods enabled.
 The token comes from web-token.txt beside the launcher (native/dist).
 """
 import json

@@ -52,12 +52,18 @@ lua_api! {
     toboolean: "lua_toboolean" => fn(*mut LuaState, c_int) -> c_int;
     absindex: "lua_absindex" => fn(*mut LuaState, c_int) -> c_int;
     checkstack: "lua_checkstack" => fn(*mut LuaState, c_int) -> c_int;
+    touserdata: "lua_touserdata" => fn(*mut LuaState, c_int) -> *mut c_void;
+    getmetatable: "lua_getmetatable" => fn(*mut LuaState, c_int) -> c_int;
+    getfield: "lua_getfield" => fn(*mut LuaState, c_int, *const c_char);
+    getglobal: "lua_getglobal" => fn(*mut LuaState, *const c_char);
+    pcallk: "lua_pcallk" => fn(*mut LuaState, c_int, c_int, c_int, c_int, Option<CFunction>) -> c_int;
 }
 
 pub const LUA_TBOOLEAN: c_int = 1;
 pub const LUA_TNUMBER: c_int = 3;
 pub const LUA_TSTRING: c_int = 4;
 pub const LUA_TTABLE: c_int = 5;
+pub const LUA_TUSERDATA: c_int = 7;
 
 // ---- helpers for native functions ----------------------------------------------------------------------------
 
@@ -262,6 +268,143 @@ unsafe extern "C" fn n_plugins(l: *mut LuaState) -> c_int {
     1
 }
 
+// ---- engine objects --------------------------------------------------------------------------------------------
+
+/// a JSON value as a Lua value (null as nil)
+pub unsafe fn push_value(l: *mut LuaState, v: &serde_json::Value, depth: u32) {
+    let a = api();
+    if depth > 64 || (a.checkstack)(l, 4) == 0 {
+        (a.pushnil)(l);
+        return;
+    }
+    match v {
+        serde_json::Value::Null => (a.pushnil)(l),
+        serde_json::Value::Bool(b) => (a.pushboolean)(l, *b as c_int),
+        serde_json::Value::Number(n) => (a.pushnumber)(l, n.as_f64().unwrap_or(0.0)),
+        serde_json::Value::String(s) => push_str(l, s),
+        serde_json::Value::Array(items) => {
+            (a.createtable)(l, items.len() as c_int, 0);
+            for (i, x) in items.iter().enumerate() {
+                push_value(l, x, depth + 1);
+                (a.rawseti)(l, -2, i as c_int + 1);
+            }
+        }
+        serde_json::Value::Object(m) => {
+            (a.createtable)(l, 0, m.len() as c_int);
+            for (k, x) in m {
+                push_value(l, x, depth + 1);
+                let key = std::ffi::CString::new(k.as_str()).unwrap_or_default();
+                (a.setfield)(l, -2, key.as_ptr());
+            }
+        }
+    }
+}
+
+/// the engine object at argument `idx`: a game Lua object (LuaEntity, LuaPlayer, ...), a {ptr = n, type = "Class"}
+/// table (what reads hand out for pointers) or an address. (address, class or "" for the object's own class)
+unsafe fn target(l: *mut LuaState, idx: c_int) -> Result<(usize, String), String> {
+    let a = api();
+    match (a.type_of)(l, idx) {
+        LUA_TUSERDATA => {
+            let ud = (a.touserdata)(l, idx) as usize;
+            crate::engine::with_types(|t| {
+                // (Factorio's Lua keeps a game object's pointer in its userdata header, 16 bytes before the data
+                // lua_touserdata points at; the data itself, and a pointer there, are tried too)
+                let word = |a: usize| fse_engine::types::read_mem(a, 8).map(|b| u64::from_le_bytes(b.try_into().unwrap()) as usize);
+                for cand in [word(ud.wrapping_sub(16)), word(ud), Some(ud)].into_iter().flatten() {
+                    if let Some((full, name)) = t.dynamic(cand) {
+                        if name.starts_with("Lua") {
+                            return Ok((full, name));
+                        }
+                    }
+                }
+                Err("not a game object".into())
+            })
+        }
+        LUA_TTABLE => {
+            (a.getfield)(l, idx, c"ptr".as_ptr());
+            let ptr = arg_num(l, -1);
+            (a.getfield)(l, idx, c"type".as_ptr());
+            let ty = arg_str(l, -1).unwrap_or_default();
+            (a.settop)(l, -3);
+            Ok((ptr.ok_or("a table target needs ptr")? as usize, ty))
+        }
+        LUA_TNUMBER => Ok((arg_num(l, idx).unwrap_or(0.0) as usize, String::new())),
+        _ => Err("target: a game object, a {ptr, type} table or an address".into()),
+    }
+}
+
+/// native.read(target, path?, depth?) -> value | nil, error : an engine object's field (path "a.b.3.c"; "" the object
+/// itself), decoded: numbers, booleans, strings, tables of fields (`depth` levels of nested objects, default 1),
+/// pointers as {ptr = n, type = "Class"} (their real class), which can be read further
+unsafe extern "C" fn n_read(l: *mut LuaState) -> c_int {
+    let (addr, class) = match target(l, 1) { Ok(t) => t, Err(e) => return fail(l, &e) };
+    let path = arg_str(l, 2).unwrap_or_default();
+    let depth = arg_num(l, 3).unwrap_or(1.0).clamp(0.0, 8.0) as u32;
+    let r = crate::engine::with_types(|t| {
+        let lua_class = class.starts_with("Lua") && path.is_empty();
+        if class.is_empty() || lua_class { t.read_dynamic(addr, &path, depth) } else { t.read(addr, &class, &path, depth) }
+    });
+    match r {
+        Ok(v) => {
+            push_value(l, &v, 0);
+            1
+        }
+        Err(e) => fail(l, &e),
+    }
+}
+
+/// native.layout(class) -> {name, size, fields = {{name, offset, type}}} : an engine class as this build has it
+/// (bases as fields named "^Base")
+unsafe extern "C" fn n_layout(l: *mut LuaState) -> c_int {
+    let Some(class) = arg_str(l, 1) else { return fail(l, "native.layout(class): class must be a string") };
+    match crate::engine::with_types(|t| t.layout(&class)) {
+        Ok(v) => {
+            push_value(l, &v, 0);
+            1
+        }
+        Err(e) => fail(l, &e),
+    }
+}
+
+/// native.metatable(object) -> its metatable, past any protection (for extending game classes; see fse-std extend)
+unsafe extern "C" fn n_metatable(l: *mut LuaState) -> c_int {
+    if (api().getmetatable)(l, 1) == 0 {
+        return fail(l, "no metatable");
+    }
+    1
+}
+
+/// native.events(since?) -> { {seq, plugin, name, data}... }, newest : events plugins emitted after `since` (data
+/// decoded from JSON when it is JSON). Without `since`: none, and the number to start from.
+unsafe extern "C" fn n_events(l: *mut LuaState) -> c_int {
+    let a = api();
+    let since = arg_num(l, 1);
+    (a.createtable)(l, 0, 0);
+    let mut n = 0;
+    let newest = crate::events::since(since.map(|s| s as u64).unwrap_or(u64::MAX), |e| {
+        if (a.checkstack)(l, 8) == 0 {
+            return;
+        }
+        (a.createtable)(l, 0, 4);
+        (a.pushnumber)(l, e.seq as f64);
+        (a.setfield)(l, -2, c"seq".as_ptr());
+        push_str(l, &e.plugin);
+        (a.setfield)(l, -2, c"plugin".as_ptr());
+        push_str(l, &e.name);
+        (a.setfield)(l, -2, c"name".as_ptr());
+        match serde_json::from_str::<serde_json::Value>(&e.data) {
+            Ok(v) => push_value(l, &v, 0),
+            Err(_) => push_str(l, &e.data),
+        }
+        (a.setfield)(l, -2, c"data".as_ptr());
+        n += 1;
+        (a.rawseti)(l, -2, n);
+    });
+    (a.pushnumber)(l, newest as f64);
+    2
+}
+
 const FUNCTIONS: &[(&CStr, CFunction)] = &[
     (c"version", n_version),
     (c"log", n_log),
@@ -272,6 +415,13 @@ const FUNCTIONS: &[(&CStr, CFunction)] = &[
     (c"plugins", n_plugins),
     (c"build", n_build),
     (c"to_json", n_to_json),
+    (c"read", n_read),
+    (c"layout", n_layout),
+    (c"metatable", n_metatable),
+    (c"events", n_events),
+    (c"sync", crate::mp::n_sync),
+    (c"local_player", crate::mp::n_local_player),
+    (c"on_tick_end", crate::mp::n_on_tick_end),
 ];
 
 unsafe fn register(l: *mut LuaState) {

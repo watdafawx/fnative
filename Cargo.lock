@@ -344,10 +344,11 @@ dependencies = [
 
 [[package]]
 name = "fse-core"
-version = "0.6.0"
+version = "0.8.0"
 dependencies = [
  "fse-engine",
  "retour",
+ "serde_json",
  "windows-sys 0.59.0",
 ]
 
@@ -389,6 +390,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "fse-hooks"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "retour",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "fse-input"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "retour",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fse-launcher"
 version = "0.1.0"
 dependencies = [
@@ -405,6 +426,9 @@ dependencies = [
 [[package]]
 name = "fse-plugin"
 version = "0.1.0"
+dependencies = [
+ "windows-sys 0.59.0",
+]
 
 [[package]]
 name = "fse-profiler"

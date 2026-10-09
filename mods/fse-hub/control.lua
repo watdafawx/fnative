@@ -373,7 +373,7 @@ local function open(player, tab)
   local frame, content = window.create(player, { name = NAME, title = "fse hub", width = 960, height = 680,
     min_width = 420, min_height = 260 })
   if not loaded() then
-    content.add({ type = "label", caption = "Start the game with fse.exe to use fse." })
+    content.add({ type = "label", caption = "FSE is not installed: see github.com/watdafawx/fse." })
     return frame
   end
   local v = view(player.index)

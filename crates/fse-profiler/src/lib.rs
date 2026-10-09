@@ -63,58 +63,6 @@ macro_rules! slot_table {
 slot_table!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
             29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47);
 
-fn undecorate(name: &str, flags: u32) -> String {
-    let Ok(c) = std::ffi::CString::new(name) else { return name.into() };
-    let mut buf = [0u8; 2048];
-    let n = unsafe {
-        windows_sys::Win32::System::Diagnostics::Debug::UnDecorateSymbolName(c.as_ptr() as *const u8, buf.as_mut_ptr(),
-                                                                             buf.len() as u32, flags)
-    };
-    if n == 0 { name.into() } else { String::from_utf8_lossy(&buf[..n as usize]).into_owned() }
-}
-
-/// can the 4-integer-register wrapper stand in for this function? Err says why not.
-/// `proto` is the full prototype: "public: void __cdecl TransportLine::update(class MapTick,unsigned int) __ptr64"
-fn hookable(proto: &str) -> Result<(), String> {
-    let p = proto.replace(" __ptr64", "");
-    let at = p.find("__cdecl ").ok_or("no prototype")?;
-    let open = p[at..].find('(').map(|j| at + j).ok_or("no prototype")?;
-    let close = p.rfind(')').ok_or("no prototype")?;
-    let ret = &p[..at];
-    if ret.contains("float") || ret.contains("double") {
-        return Err("returns a float".into());
-    }
-    let mut args = Vec::new();
-    let (mut depth, mut cur) = (0i32, String::new());
-    for ch in p[open + 1..close].chars() {
-        match ch {
-            '<' | '(' => {
-                depth += 1;
-                cur.push(ch)
-            }
-            '>' | ')' => {
-                depth -= 1;
-                cur.push(ch)
-            }
-            ',' if depth == 0 => args.push(std::mem::take(&mut cur)),
-            _ => cur.push(ch),
-        }
-    }
-    args.push(cur);
-    let args: Vec<&str> = args.iter().map(|a| a.trim()).filter(|a| !a.is_empty() && *a != "void").collect();
-    if args.iter().any(|a| a.contains("...")) {
-        return Err("variadic".into());
-    }
-    if args.iter().any(|a| (a.contains("float") || a.contains("double")) && !a.contains('*') && !a.contains('&')) {
-        return Err("takes a float".into());
-    }
-    let member = ["public:", "private:", "protected:"].iter().any(|s| p.starts_with(s)) && !p.contains(" static ");
-    // (a class returned by value comes back through a hidden pointer argument)
-    let hidden = (ret.contains("class ") || ret.contains("struct ")) && !ret.contains('*') && !ret.contains('&');
-    let n = args.len() + member as usize + hidden as usize;
-    if n > 4 { Err(format!("{n} arguments (at most 4 travel in registers)")) } else { Ok(()) }
-}
-
 #[derive(Deserialize)]
 struct Config {
     tick: String,
@@ -138,12 +86,12 @@ fn install(cfg: &Config) {
             skipped.push((name, "not in this build".into()));
             continue;
         };
-        let proto = undecorate(&name, 0);
-        if let Err(why) = hookable(&proto) {
+        let proto = fp::undecorate(&name, 0);
+        if let Err(why) = fp::hookable(&proto, 4) {
             skipped.push((name, format!("{why}: {proto}")));
             continue;
         }
-        let readable = undecorate(&name, 0x1000);
+        let readable = fp::undecorate(&name, 0x1000);
         chosen.push((Slot { name, readable, calls: AtomicU64::new(0), cycles: AtomicU64::new(0), detour: OnceLock::new() }, addr));
     }
     let _ = TICK.set(chosen.iter().position(|(s, _)| s.name == cfg.tick));

@@ -1,12 +1,13 @@
 /* fse plugin ABI, version 1.
  *
- * A plugin is a DLL in the plugins folder (FSE_PLUGINS, else "plugins" beside fse.exe) exporting
+ * A plugin is a DLL in the plugins folder (FSE_PLUGINS, else "plugins" in the fse folder) exporting
  *     int fse_plugin_init(const fse_host *host);      returns 0 on success
  * It is called once, before the game starts (keep it quick: start heavy things lazily, on the first call).
  * There it registers its functions with host->register_fn. Lua mods then reach them through the native table:
  *     native.call(plugin, name, input)          on the game thread, returns the output string, or nil, error
  *     native.start(plugin, name, input)         on a worker thread (functions registered FSE_THREADSAFE),
  *     native.poll(id)                           returns "pending" | "done", output | "error", message
+ * A plugin can also send events to Lua (host->emit, from any thread); mods take them with native.events(since).
  * Input and output are byte strings; JSON is the convention (Lua side: helpers.table_to_json / json_to_table).
  *
  * Any language that can export a C function works: C, C++, Rust, Zig, Go (c-shared), ... */
@@ -48,6 +49,16 @@ typedef struct fse_host {
     /* --- added in core 0.4.0 --- another plugin's function, as Lua's native.call does (from a worker thread call
      * only threadsafe ones). *out stays valid until this thread's next host call. */
     int (*call)(const char *plugin, const char *name, const char *in, size_t in_len, const char **out, size_t *out_len);
+    /* --- added in core 0.7.0 --- an event for Lua (native.events), from any thread; data is JSON by convention */
+    void (*emit)(const char *plugin, const char *name, const char *data, size_t len);
+    /* an engine object's value along a field path ("entityTarget.target.heldStack"), as JSON; class NULL or "" for
+     * the object's real class (from its vtable). Never crashes on a bad address: returns nonzero and a message.
+     * *out stays valid until this thread's next host call. */
+    int (*read)(uint64_t addr, const char *class_name, const char *path, uint32_t depth, const char **out,
+                size_t *out_len);
+    /* --- added in core 0.8.0 --- emit counts an event raised while the simulation updates as part of that tick's
+     * "fse-event", which every multiplayer peer gets; emit_local never does (the render thread, input, workers) */
+    void (*emit_local)(const char *plugin, const char *name, const char *data, size_t len);
 } fse_host;
 
 typedef int (*fse_plugin_init_fn)(const fse_host *host);

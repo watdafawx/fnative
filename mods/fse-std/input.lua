@@ -10,13 +10,15 @@
 
 local M = {}
 
+-- (in multiplayer the mouse and the rest are one peer's own: the library then works as without fse, click to pick
+-- and drop, so every peer's GUI stays the same)
 local has_std
 function M.native()
   if has_std == nil then
     local ok, list = pcall(function() return type(native) == "table" and native.plugins() end)
     has_std = ok and type(list) == "table" and list.std ~= nil
   end
-  return has_std
+  return has_std and not game.is_multiplayer()
 end
 
 local function call(fn, arg)

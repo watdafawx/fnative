@@ -33,6 +33,11 @@ pub struct Host {
     // core 0.4.0
     pub call: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize, *mut *const c_char,
                                    *mut usize) -> i32,
+    // core 0.7.0
+    pub emit: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize),
+    pub read: unsafe extern "C" fn(u64, *const c_char, *const c_char, u32, *mut *const c_char, *mut usize) -> i32,
+    // core 0.8.0
+    pub emit_local: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize),
 }
 
 static mut HOST: *const Host = std::ptr::null();
@@ -108,6 +113,95 @@ pub fn call(plugin: &str, name: &str, input: &[u8]) -> Result<Vec<u8>, String> {
     let rc = unsafe { (h.call)(p.as_ptr(), n.as_ptr(), input.as_ptr() as *const c_char, input.len(), &mut out, &mut len) };
     let bytes = if out.is_null() { Vec::new() } else { unsafe { std::slice::from_raw_parts(out as *const u8, len) }.to_vec() };
     if rc == 0 { Ok(bytes) } else { Err(String::from_utf8_lossy(&bytes).into_owned()) }
+}
+
+/// an event for Lua (native.events): `data` is JSON by convention. Any thread; cheap (a lock and a copy). Emitted
+/// while the simulation updates, it is also part of that tick's "fse-event" on every peer (see emit_local).
+#[allow(static_mut_refs)]
+pub fn emit(name: &str, data: &str) {
+    let Some(h) = host().filter(|_| core_version() >= (0, 7, 0)) else { return };
+    let plugin = unsafe { NAME.as_ref().map(|n| n.as_ptr()).unwrap_or(c"?".as_ptr()) };
+    let n = c(name);
+    unsafe { (h.emit)(plugin, n.as_ptr(), data.as_ptr() as *const c_char, data.len()) }
+}
+
+/// an event that is never part of the simulation (from the render thread, the mouse, a worker of your own): it goes
+/// to native.events only, never to the "fse-event" every peer gets
+#[allow(static_mut_refs)]
+pub fn emit_local(name: &str, data: &str) {
+    let Some(h) = host().filter(|_| core_version() >= (0, 8, 0)) else { return emit(name, data) };
+    let plugin = unsafe { NAME.as_ref().map(|n| n.as_ptr()).unwrap_or(c"?".as_ptr()) };
+    let n = c(name);
+    unsafe { (h.emit_local)(plugin, n.as_ptr(), data.as_ptr() as *const c_char, data.len()) }
+}
+
+/// an engine object's value along `path`, as JSON (`class` "": the object's real class, from its vtable)
+pub fn read(addr: usize, class: &str, path: &str, depth: u32) -> Result<String, String> {
+    let h = host().filter(|_| core_version() >= (0, 7, 0)).ok_or("the core is older than 0.7.0: no read")?;
+    let (cl, p) = (c(class), c(path));
+    let mut out: *const c_char = std::ptr::null();
+    let mut len = 0usize;
+    let rc = unsafe { (h.read)(addr as u64, cl.as_ptr(), p.as_ptr(), depth, &mut out, &mut len) };
+    let text = if out.is_null() { String::new() } else {
+        String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(out as *const u8, len) }).into_owned()
+    };
+    if rc == 0 { Ok(text) } else { Err(text) }
+}
+
+// ---- hooking engine functions ----------------------------------------------------------------------------------
+
+/// an MSVC-decorated name made readable (flags 0: the full prototype; 0x1000: just the name)
+pub fn undecorate(name: &str, flags: u32) -> String {
+    let Ok(c) = std::ffi::CString::new(name) else { return name.into() };
+    let mut buf = [0u8; 2048];
+    let n = unsafe {
+        windows_sys::Win32::System::Diagnostics::Debug::UnDecorateSymbolName(c.as_ptr() as *const u8, buf.as_mut_ptr(),
+                                                                             buf.len() as u32, flags)
+    };
+    if n == 0 { name.into() } else { String::from_utf8_lossy(&buf[..n as usize]).into_owned() }
+}
+
+/// can a wrapper passing `max` integer arguments through (registers and stack slots, never float registers) stand
+/// in for this function? Err says why not.
+/// `proto` is the full prototype: "public: void __cdecl TransportLine::update(class MapTick,unsigned int) __ptr64"
+pub fn hookable(proto: &str, max: usize) -> Result<(), String> {
+    let p = proto.replace(" __ptr64", "");
+    let at = p.find("__cdecl ").ok_or("no prototype")?;
+    let open = p[at..].find('(').map(|j| at + j).ok_or("no prototype")?;
+    let close = p.rfind(')').ok_or("no prototype")?;
+    let ret = &p[..at];
+    if ret.contains("float") || ret.contains("double") {
+        return Err("returns a float".into());
+    }
+    let mut args = Vec::new();
+    let (mut depth, mut cur) = (0i32, String::new());
+    for ch in p[open + 1..close].chars() {
+        match ch {
+            '<' | '(' => {
+                depth += 1;
+                cur.push(ch)
+            }
+            '>' | ')' => {
+                depth -= 1;
+                cur.push(ch)
+            }
+            ',' if depth == 0 => args.push(std::mem::take(&mut cur)),
+            _ => cur.push(ch),
+        }
+    }
+    args.push(cur);
+    let args: Vec<&str> = args.iter().map(|a| a.trim()).filter(|a| !a.is_empty() && *a != "void").collect();
+    if args.iter().any(|a| a.contains("...")) {
+        return Err("variadic".into());
+    }
+    if args.iter().any(|a| (a.contains("float") || a.contains("double")) && !a.contains('*') && !a.contains('&')) {
+        return Err("takes a float".into());
+    }
+    let member = ["public:", "private:", "protected:"].iter().any(|s| p.starts_with(s)) && !p.contains(" static ");
+    // (a class returned by value comes back through a hidden pointer argument)
+    let hidden = (ret.contains("class ") || ret.contains("struct ")) && !ret.contains('*') && !ret.contains('&');
+    let n = args.len() + member as usize + hidden as usize;
+    if n > max { Err(format!("{n} arguments (at most {max})")) } else { Ok(()) }
 }
 
 thread_local! {

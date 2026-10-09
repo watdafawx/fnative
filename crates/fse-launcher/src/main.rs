@@ -39,7 +39,7 @@ fn main() {
         game = PathBuf::from(args.remove(1));
         args.remove(0);
     } else if args.first().map(|a| a.to_ascii_lowercase().ends_with("factorio.exe")).unwrap_or(false) {
-        // as a Steam launch-option wrapper ("...\fse.exe" %COMMAND%): Steam passes the game first
+        // as a Steam launch-option wrapper ("...\fse-launcher.exe" %COMMAND%): Steam passes the game first
         game = PathBuf::from(args.remove(0));
     }
     let here = std::env::current_exe().expect("own path");

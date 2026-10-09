@@ -1,4 +1,4 @@
-"""headless proof: vanilla + native-demo, started through fse.exe; prints the demo's report and log"""
+"""headless proof: vanilla + native-demo, started through fse-launcher.exe; prints the demo's report and log"""
 import json, shutil, subprocess, sys
 from pathlib import Path
 
@@ -7,7 +7,7 @@ ROOT = NATIVE.parent / "bpgen"  # (bpgen, beside fse in the dev repo)
 from factorio_paths import run_dir  # noqa: E402
 RUN = run_dir(Path(__file__).resolve().parent / "run")
 MODS = RUN / "native-mods"
-LAUNCH = NATIVE / "target" / "release" / "fse.exe"
+LAUNCH = NATIVE / "target" / "release" / "fse-launcher.exe"
 LOG = NATIVE / "target" / "release" / "fse.log"
 OUT = RUN / "script-output" / "native-demo.txt"
 

@@ -119,7 +119,7 @@ fn handle(mut req: Request, token: &str) {
     let auth = req.headers().iter().find(|h| h.field.equiv("Authorization")).map(|h| h.value.as_str().to_string());
     let ok = auth.as_deref() == Some(&format!("Bearer {token}")) || query(&url, "token").as_deref() == Some(token);
     if !ok {
-        return send_json(req, 401, &json!({"error": "token needed (web-token.txt beside fse.exe)"}));
+        return send_json(req, 401, &json!({"error": "token needed (web-token.txt in the fse folder)"}));
     }
     let mut body = String::new();
     let _ = req.as_reader().read_to_string(&mut body);

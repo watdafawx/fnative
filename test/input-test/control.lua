@@ -1,0 +1,58 @@
+-- the input plugin in a real client: the test script presses E (open the inventory) twice through the window's
+-- messages; the first press must arrive as an action event, the second, with that kind blocked, must not open it
+local nev = require("__fse-std__/native_events")
+script.on_init(function()
+  local fp = remote.interfaces["freeplay"]
+  if fp then
+    if fp.set_skip_intro then remote.call("freeplay", "set_skip_intro", true) end
+    if fp.set_disable_crashsite then remote.call("freeplay", "set_disable_crashsite", true) end
+  end
+end)
+
+local out, seen, phase, kind, phase_tick = {}, {}, 0, nil, 0
+local function say(s) out[#out + 1] = s end
+nev.on("input", "action", function(d) seen[#seen + 1] = d end)
+
+local function finish()
+  helpers.write_file("input-result.txt", table.concat(out, "\n") .. "\n", false)
+  helpers.write_file("input-done.txt", "1", false)
+end
+
+script.on_event(defines.events.on_tick, function(e)
+  nev.poll()
+  if not native then if e.tick == 30 then say("FAIL no native"); finish() end return end
+  local p = game.get_player(1)
+  if phase == 0 and e.tick == 60 then
+    native.call("input", "watch", '{"all": true}')
+    phase = 1
+    seen = {}
+    helpers.write_file("input-press-1.txt", "1", false)
+  elseif phase == 1 and p.opened_gui_type == defines.gui_type.controller then
+    for _, d in ipairs(seen) do
+      if not kind and not d.blocked and d.player == 1 and d.type:find("Open") then kind = d.type end
+    end
+    say((kind and "PASS" or "FAIL") .. " pressing E arrived as an action: " .. tostring(kind))
+    local types = {}
+    for _, d in ipairs(seen) do types[#types + 1] = d.type end
+    say("  actions seen: " .. table.concat(types, ", "))
+    p.opened = nil
+    native.call("input", "block", helpers.table_to_json({ types = { kind or "none" } }))
+    phase = 2
+    seen = {}
+    helpers.write_file("input-press-2.txt", "1", false)
+    phase_tick = e.tick
+  elseif phase == 2 and e.tick > phase_tick + 120 then
+    local blocked = false
+    for _, d in ipairs(seen) do if d.type == kind and d.blocked then blocked = true end end
+    say((blocked and "PASS" or "FAIL") .. " the second press, blocked, arrived with blocked = true")
+    say((p.opened_gui_type ~= defines.gui_type.controller and "PASS" or "FAIL") .. " a blocked action does nothing")
+    native.call("input", "block", '{"types": []}')
+    say("  status: " .. tostring(native.call("input", "status")))
+    phase = 3
+    finish()
+  elseif phase == 1 and e.tick > 60 + 600 then
+    say("FAIL the inventory never opened (the key press didn't reach the game)")
+    phase = 3
+    finish()
+  end
+end)

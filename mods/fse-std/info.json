@@ -1,3 +1,3 @@
-{"name": "fse-std", "version": "0.1.0", "title": "FSE std (library)", "author": "mtopfox", "factorio_version": "2.0",
+{"name": "fse-std", "version": "0.3.0", "title": "FSE std (library)", "author": "mtopfox", "factorio_version": "2.0",
  "description": "A GUI library for other mods: movable, resizable windows that remember where they were, and drag & drop between GUI elements. Drag & drop and resizing need the fse loader's std plugin (mouse buttons and position); without it windows still move and drag & drop works by click-to-pick, click-to-drop.",
  "dependencies": ["base"]}

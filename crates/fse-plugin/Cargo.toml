@@ -6,3 +6,6 @@ description = "Helpers for fse plugins written in Rust: the host table (include/
 
 [lib]
 name = "fse_plugin"
+
+[dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug"] }

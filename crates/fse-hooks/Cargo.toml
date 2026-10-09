@@ -1,0 +1,15 @@
+[package]
+name = "fse-hooks"
+version = "0.1.0"
+edition = "2021"
+description = "fse plugin: hooks engine functions by name and sends each call to Lua as an event, with chosen arguments decoded"
+
+[lib]
+name = "fse_hooks"
+crate-type = ["cdylib"]
+
+[dependencies]
+fse-plugin = { path = "../fse-plugin" }
+retour = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

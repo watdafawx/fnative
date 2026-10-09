@@ -18,3 +18,10 @@ styles.fstd_resize_grip = {
   left_margin = 0,
   right_margin = 0,
 }
+
+-- events fse-std raises for every mod (its control.lua): simulation events of the tick's engine hooks, and data a
+-- player's peer sent with native.sync. Both arrive on every peer in the same tick.
+data:extend({
+  { type = "custom-event", name = "fse-event" },
+  { type = "custom-event", name = "fse-sync" },
+})

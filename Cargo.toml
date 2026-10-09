@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/fse-core", "crates/fse-launcher", "crates/fse-loader", "crates/fse-python", "crates/fse-engine", "crates/fse-plugin", "crates/fse-profiler", "crates/fse-web", "crates/fse-std", "crates/fse-diag", "crates/fse-fixes", "crates/fse-entityinfo"]
+members = ["crates/fse-core", "crates/fse-launcher", "crates/fse-loader", "crates/fse-python", "crates/fse-engine", "crates/fse-plugin", "crates/fse-profiler", "crates/fse-web", "crates/fse-std", "crates/fse-diag", "crates/fse-fixes", "crates/fse-entityinfo", "crates/fse-hooks", "crates/fse-input"]
 
 [profile.release]
 debug = 1

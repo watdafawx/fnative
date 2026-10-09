@@ -33,7 +33,7 @@ def start(exe):
 
 
 plain = [start(EXE), start(EXE)]
-fixed = [start(NATIVE / "dist" / "fse.exe"), start(NATIVE / "dist" / "fse.exe")]
+fixed = [start(NATIVE / "dist" / "fse-launcher.exe"), start(NATIVE / "dist" / "fse-launcher.exe")]
 print("plain game:", plain, " through fse:", fixed)
 assert plain == ["not used", "not used"] and fixed == ["loaded", "loaded"], "unexpected"
 print("ok")

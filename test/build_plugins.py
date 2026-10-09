@@ -24,8 +24,6 @@ for junk in OUT.glob("hello.*"):
         junk.unlink()
 # Python (built by cargo with the workspace)
 # Rust plugins (built by cargo with the workspace)
-for name in ("fse_python.dll", "fse_profiler.dll", "fse_web.dll", "fse_std.dll", "fse_diag.dll", "fse_fixes.dll", "fse_entityinfo.dll"):
-    dll = NATIVE / "target" / "release" / name
-    if dll.exists():
-        shutil.copy(dll, OUT / name)
+for dll in (NATIVE / "target" / "release").glob("fse_*.dll"):
+    shutil.copy(dll, OUT / dll.name)
 print("plugins:", sorted(p.name for p in OUT.glob("*.dll")))

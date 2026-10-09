@@ -30,6 +30,11 @@ pub struct Host {
     class_size: unsafe extern "C" fn(*const c_char) -> i64,
     // (core 0.4.0)
     call: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize, *mut *const c_char, *mut usize) -> i32,
+    // (core 0.7.0)
+    emit: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize),
+    read: unsafe extern "C" fn(u64, *const c_char, *const c_char, u32, *mut *const c_char, *mut usize) -> i32,
+    // (core 0.8.0)
+    emit_local: unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, usize),
 }
 
 // (the version string it points to is a static CString: read-only, lives for the whole process)
@@ -99,6 +104,39 @@ unsafe extern "C" fn host_call(plugin: *const c_char, name: *const c_char, input
     rc
 }
 
+unsafe extern "C" fn host_emit(plugin: *const c_char, name: *const c_char, data: *const c_char, len: usize) {
+    let bytes = if data.is_null() { &[][..] } else { std::slice::from_raw_parts(data as *const u8, len) };
+    crate::events::emit(&cstr(plugin), &cstr(name), &String::from_utf8_lossy(bytes), false);
+}
+
+/// an event that never counts as a simulation event (from the render thread, the mouse, ...)
+unsafe extern "C" fn host_emit_local(plugin: *const c_char, name: *const c_char, data: *const c_char, len: usize) {
+    let bytes = if data.is_null() { &[][..] } else { std::slice::from_raw_parts(data as *const u8, len) };
+    crate::events::emit(&cstr(plugin), &cstr(name), &String::from_utf8_lossy(bytes), true);
+}
+
+/// an engine object's value along a path, as JSON (class NULL or "": the object's own class, from its vtable)
+unsafe extern "C" fn host_read(addr: u64, class: *const c_char, path: *const c_char, depth: u32,
+                               out: *mut *const c_char, out_len: *mut usize) -> i32 {
+    let (class, path) = (cstr(class), cstr(path));
+    let r = crate::engine::with_types(|t| if class.is_empty() {
+        t.read_dynamic(addr as usize, &path, depth)
+    } else {
+        t.read(addr as usize, &class, &path, depth)
+    });
+    let (rc, data) = match r {
+        Ok(v) => (0, v.to_string().into_bytes()),
+        Err(e) => (1, e.into_bytes()),
+    };
+    CALL_OUT.with(|o| {
+        let mut o = o.borrow_mut();
+        *o = data;
+        *out = o.as_ptr() as *const c_char;
+        *out_len = o.len();
+    });
+    rc
+}
+
 static VERSION_C: OnceLock<CString> = OnceLock::new();
 static BUILD_C: OnceLock<CString> = OnceLock::new();
 static HOST: OnceLock<Host> = OnceLock::new();
@@ -118,7 +156,8 @@ pub fn load_all() {
         register_fn: host_register,
         build: BUILD_C.get_or_init(|| CString::new(crate::engine::engine().map(|e| e.build.to_string()).unwrap_or_default())
             .unwrap_or_default()).as_ptr(),
-        field_offset: host_field_offset, class_size: host_class_size, call: host_call,
+        field_offset: host_field_offset, class_size: host_class_size, call: host_call, emit: host_emit,
+        read: host_read, emit_local: host_emit_local,
     });
     let Some(dir) = folder() else { return };
     let Ok(entries) = std::fs::read_dir(&dir) else {

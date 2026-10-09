@@ -10,6 +10,8 @@
 //! and `diff` what moved since the previous build (written to `<cache>/<build>/report.txt` the first time a build is
 //! seen, so a game update shows its effect at once).
 
+pub mod types;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};

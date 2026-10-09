@@ -4,6 +4,7 @@
 //!   fse-pdb functions <part> [n]     functions whose readable name contains <part>, with their pdb names
 //!   fse-pdb classes <part> [n]       class names containing <part>, with sizes
 //!   fse-pdb class <Name>...          layouts: size, bases, fields with offsets and types
+//!   fse-pdb layout <Name>...         layouts through the type index the in-game reader uses (bases as ^Base)
 //!   fse-pdb report                   check the needs (dist/needs.json, dist/plugins/*.needs.json) against this
 //!                                        build, cache it in dist/cache/<build>, compare with the previous build
 //! The game is FACTORIO_EXE, else the Steam install; --game <exe> overrides.
@@ -37,7 +38,8 @@ fn main() {
         Some("classes") => classes(&pdb, args.get(1).map(String::as_str).unwrap_or(""), limit(&args)),
         Some("class") => class(&pdb, &args[1..]),
         Some("report") => report(&game, &pdb),
-        _ => Err("usage: fse-pdb info | functions <part> [n] | classes <part> [n] | class <Name>... | report".into()),
+        Some("layout") => layout(&pdb, &args[1..]),
+        _ => Err("usage: fse-pdb info | functions <part> [n] | classes <part> [n] | class <Name>... | layout <Name>... | report".into()),
     };
     if let Err(e) = r {
         eprintln!("fse-pdb: {e}");
@@ -113,5 +115,15 @@ fn report(game: &Path, pdb: &Path) -> Result<(), String> {
     let version = std::fs::metadata(game).map(|m| format!("{} bytes", m.len())).unwrap_or_default();
     let text = fe::report(&dist.join("cache"), &e, &needs, &version);
     println!("{text}{}", if fresh { "(read from the pdb and cached)" } else { "(from the cache)" });
+    Ok(())
+}
+
+fn layout(pdb: &Path, names: &[String]) -> Result<(), String> {
+    let t = std::time::Instant::now();
+    let types = fe::types::Types::open(pdb, (0, 0))?;
+    eprintln!("type index in {:.2?}", t.elapsed());
+    for n in names {
+        println!("{}", serde_json::to_string_pretty(&types.layout(n)?).unwrap_or_default());
+    }
     Ok(())
 }

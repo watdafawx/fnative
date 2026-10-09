@@ -1,9 +1,11 @@
-"""Builds fse into fse/dist: the launcher, the core DLL, the plugins (C and Python) and fse.env.
+"""Builds fse into fse/dist: the loader, the launcher, the core DLL, the plugins (C and Python), the Python tools, the
+mods that come with fse and fse.env.
 
     python fse/build.py
 
-Then start the game with dist/fse.exe [factorio arguments], or as a Steam launch option:
-    "<this folder>\\dist\\fse.exe" %COMMAND%
+dist/ is laid out like the install: dist/bin/x64/version.dll (the loader) goes into the game's bin/x64, the rest is
+<game>/fse (python install.py does both for this build). dist/fse-launcher.exe starts the game with fse without
+installing anything (the tests use it).
 """
 import os
 import shutil
@@ -29,7 +31,7 @@ env = dict(os.environ, PYO3_PYTHON=PYTHON)  # (the Python plugin is built agains
 run(["cargo", "build", "--release"], cwd=NATIVE, env=env)
 run([PYTHON, str(NATIVE / "test" / "build_plugins.py")])
 (DIST / "plugins").mkdir(parents=True, exist_ok=True)
-for name in ("fse.exe", "fse.dll"):
+for name in ("fse-launcher.exe", "fse.dll"):
     shutil.copy2(REL / name, DIST / name)
 (DIST / "bin" / "x64").mkdir(parents=True, exist_ok=True)
 shutil.copy2(REL / "version.dll", DIST / "bin" / "x64" / "version.dll")

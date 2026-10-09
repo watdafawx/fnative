@@ -10,9 +10,10 @@ launch options: a small `version.dll` beside `factorio.exe` (Windows loads it fr
 `fse.dll` before the game starts. fse finds the engine's functions by name in `factorio.pdb`, the debug symbols Wube
 ships with the game, so game updates need no new offsets, and Steam updates leave the install alone.
 
-> **Single player only.** Native results aren't part of the deterministic simulation, so they would desync
-> multiplayer games and replays. Windows only. Not for the mod portal (it can't carry native binaries).
-> Keep crash-report uploading off while you experiment: crashes with foreign code in the process are noise for Wube.
+> **Multiplayer works** when every player and the server run the same FSE (see *Multiplayer* below: a player
+> without it is kicked with a message saying so). Windows only. Not for the mod portal (it can't carry native
+> binaries). Keep crash-report uploading off while you experiment: crashes with foreign code in the process are
+> noise for Wube.
 
 ## Getting started
 
@@ -68,7 +69,7 @@ was found), `py\`, `mods\`, `web\` and `fse.env` (created once, never overwritte
 into the game and makes the game's `fse` folder a junction to `dist\`, so each rebuild is live at the next start;
 `install.py --remove` undoes it. `package.py` makes the release zip.
 
-`dist\fse.exe` is the launcher the tests use: it starts the game and injects `fse.dll` (from beside itself) with
+`dist\fse-launcher.exe` is the launcher the tests use: it starts the game and injects `fse.dll` (from beside itself) with
 nothing installed. Pass it any Factorio arguments; it finds the game in the usual Steam libraries, or set
 `FACTORIO_EXE`.
 
@@ -84,7 +85,7 @@ Or click the **F** button if you installed `fse-hub`.
 
 ## Settings (`fse\fse.env`)
 
-One `KEY=value` per line, read at every start (by the loader, or the launcher beside `dist\fse.exe`).
+One `KEY=value` per line, read at every start (by the loader, or the launcher beside `dist\fse-launcher.exe`).
 
 | key | default | does |
 |---|---|---|
@@ -123,9 +124,73 @@ end
 | `native.to_json(value, skip?)` | any Lua value as JSON, much faster than `helpers.table_to_json`; works in the data stage too (`data.raw`); `skip = {key = true}` leaves keys out at any depth |
 | `native.symbols(part, limit?)` | engine function names containing `part` |
 | `native.build()` | `{ build = "...", new = true }` on the first start of a new game build |
+| `native.read(target, path?, depth?)` | an engine object's field, decoded (below) |
+| `native.layout(class)` | an engine class as this build has it: `{name, size, fields = {{name, offset, type}}}` |
+| `native.metatable(object)` | a game object's metatable, past its protection (`fse-std`'s `extend` uses it) |
+| `native.sync(key, data)` | sends `data` (a string) from this peer's player to every peer: the `fse-sync` event `{player_index, key, data}` (multiplayer, below) |
+| `native.local_player()` | this peer's own player index, or nil (headless server, menu) |
+| `native.events(since?)` | events plugins sent after `since`: `{ {seq, plugin, name, data} }, newest`; without `since` just `newest` |
 
 Rules: native functions never raise Lua errors; they return `nil, message`. Inputs and outputs are strings (JSON by
 convention). Long work goes through `start`/`poll` so a tick never waits.
+
+### Engine objects
+
+`native.read` reads the game's own C++ objects by their field names, from the type records in `factorio.pdb`, so
+it keeps working across game updates as long as the names do. A target is a game Lua object (`LuaEntity`,
+`LuaPlayer`, `LuaSurface`, ...), or a pointer a read handed out (`{ptr = n, type = "Inserter"}`).
+
+```lua
+local ins = native.read(entity, "entityTarget.target")   -- {ptr = ..., type = "Inserter"}: the real class
+native.read(ins, "heldStack")                             -- {count = 0, itemID = 0, stackSize = 0, ...}
+native.read(ins, "prototype.name")                        -- "inserter": through a pointer and base classes
+native.read(entity, "entityTarget.target.position")       -- {x = 10.5, y = 7.5}
+native.read(ins, "^Entity.surface")                       -- ^Class views the object as a base or derived class
+```
+
+Paths are field names joined by dots; fields of base classes are found too, pointers are followed, and a number
+indexes an array or `std::vector`. Values come back as numbers, booleans, strings (`std::string`), tables of
+fields (`depth` levels deep, default 1) and pointers. Pointers to classes resolve to the object's real class via
+RTTI. A bad address or unknown field returns `nil, message`; nothing is ever read unchecked. Explore with
+`native.layout("Inserter")` or `fse-pdb layout Inserter` (`target\release\fse-pdb.exe`). Reading is for looking:
+nothing is written.
+
+### Multiplayer
+
+Factorio's multiplayer is lockstep: every peer simulates the same ticks from the same input actions. Anything only
+one peer knows (the mouse, the clipboard, a file, Python's answer, the clock, an engine address) must reach the game
+through those input actions, or the peers drift apart (a desync). FSE gives two ways in, both arriving on every peer
+in the same tick (`fse-std` raises them; it must be installed):
+
+```lua
+-- 1. engine hooks: calls the simulation made during the tick's update, at its end, in a fixed order
+script.on_event("fse-event", function(e)
+  for _, ev in ipairs(e.events) do  -- {plugin, name, data}
+    if ev.name == "rotated" then storage.rotations = storage.rotations + 1 end
+  end
+end)
+
+-- 2. local data: one peer sends it, every peer gets it
+if native.local_player() == player.index then native.sync("my-mod:clock", native.call("std", "now")) end
+script.on_event("fse-sync", function(e)  -- {player_index, key, data}
+  if e.key == "my-mod:clock" then storage.clocks[e.player_index] = e.data end
+end)
+```
+
+The rules:
+
+- Change the game only from deterministic code (events, `on_tick`, commands) using game state, `fse-event` and
+  `fse-sync`. `native.events`, `native.call` results, `native.local_player()` and the pointers `native.read` hands
+  out are this peer's own: use them for what this peer shows or sends, never to change the game directly.
+- What plugins keep isn't in the save: add hooks (`hooks.add`) and blocked inputs (`input.block`) in both `on_init`
+  and `on_load`, so a joining player has them before its first tick. Values `native.read` reads from simulation
+  objects are the same on every peer.
+- Hooks on functions the render thread runs need `local = true` (they never join `fse-event`).
+- `native.sync` needs a player: a headless server can't send. Keep the data small; it travels as a console command.
+- In multiplayer `fse-std`'s windows and drag & drop work as they do without FSE (click to pick and drop), since
+  the mouse is one peer's own.
+- The handshake: every joining player's FSE sends its version and plugin list; a different one, or none within 10
+  seconds, is kicked.
 
 ### Python
 
@@ -161,6 +226,8 @@ local safe   = require("__fse-std__/safe")
 | `input` | the cursor and mouse buttons (`read()`), the wheel, clipboard, real time in ms, reading files under script-output |
 | `events` | `events.register({...})`: one registration per event for all of the above plus your own handlers, each guarded |
 | `safe` | `guard(name, fn)` (an error is logged instead of crashing the game), `has(plugin)`, `log`, `chain` |
+| `native_events` | `on(plugin, event, fn)`: events from plugins (engine hooks) to handlers; add `handlers` to `events.register` (it polls each tick) |
+| `extend` | `class(sample, {name = fn})`: new properties (and `extend.method`s) on a game class like `LuaEntity`, for your mod only |
 
 Add `"? fse-std"` to your mod's dependencies if it should work without it, and check
 `script.active_mods["fse-std"]` before requiring.
@@ -176,6 +243,8 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
 | `diag` | off unless `FSE_DIAG=1`: logs the message and stack of every engine error |
 | `entityinfo` | a mod's own rows in the game's info panel for the entity under the cursor (below) |
+| `hooks` | any engine function, by its pdb name, as an event for Lua on every call, with chosen arguments read (below) |
+| `input` | every player input action (336 kinds: `native.layout("InputActionType").values`) as an event `action` `{type, player, tick, blocked}` (`input.watch {types}` or `{all = true}`), and chosen kinds dropped before the game applies them (`input.block {types, player?}`) |
 | `hello` | the C example |
 
 ### Engine fixes
@@ -187,6 +256,27 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 - **gc-idle-skip**: every tick the engine forces a Lua GC step in each mod's Lua state, even states that allocated
   nothing since their last cycle, so they re-walk their whole heap again and again. The fix skips the step only for
   a state that is between cycles and whose memory hasn't changed. With ~400 mods this halved the GC time per tick.
+
+### Engine functions as events (`hooks`)
+
+Hook a function by its `factorio.pdb` name (`fse-pdb functions rotate` lists them) and every call becomes an event,
+with the arguments you ask for read like `native.read` does:
+
+```lua
+local nev = require("__fse-std__/native_events")
+native.call("hooks", "add", helpers.table_to_json({
+  fn = "?rotate@Entity@@UEAA?AVActionResult@@W4RotateDirection@@@Z", event = "rotated",
+  args = { { arg = 0, path = "prototype.name", as = "name" }, { arg = 0, path = "position", as = "pos" } },
+}))
+nev.on("hooks", "rotated", function(data) game.print(data.args.name .. " rotated") end)
+```
+
+A hook: `fn`, `event`, `args` (`arg`: which argument, 0 is `this`; `path`, `class`, `depth`, `as`; or `raw = true`
+for the integer itself), `every` (send every Nth call), `after` (read the arguments after the call), `result` (add
+the return value). `hooks.enable` / `hooks.disable` `{event}` switch one; `hooks.status` lists them with call counts.
+Hooks can also be listed in `fse\plugins\hooks.json` (`{"hooks": [...]}`), installed before the game starts.
+Only functions whose arguments are all integers or pointers (at most 8) can be hooked; prefer functions of the
+update and Lua thread. Events reach Lua at the next poll, never inside engine code.
 
 ### Rows in the game's entity info panel (`entityinfo`)
 
@@ -213,7 +303,7 @@ SpiderVehicle is hooked (not every override calls its base); after the outermost
 ```
 version.dll   the loader, beside factorio.exe: forwards to the system's version.dll; points the game's entry
                   point at itself, and there loads fse.dll and waits until it is ready before the game starts
-(fse.exe      the launcher: starts factorio.exe suspended, injects fse.dll, waits, resumes the game)
+(fse-launcher.exe  the launcher: starts factorio.exe suspended, injects fse.dll, waits, resumes the game)
 fse.dll (Rust)    reads the function symbols of factorio.pdb (~100k functions, 60 ms)
                       finds the game's Lua 5.2 C API by name and hooks luaopen_base:
                       every Lua state gets a global `native` table
@@ -256,6 +346,10 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_web.py` | the web API, bridge and agents end to end |
 | `run_std_gui.py` | `fse-std` drag & drop and resizing in a real game window, with screenshots |
 | `run_hub.py` | the menu overlay, the hub and its tabs in a real game window |
+| `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |
+| `run_input_gui.py` | the `input` plugin in a real game window: a key press as an action event, then blocked |
+| `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |
+| `run_engine_api.py` | `native.read`, `layout`, `metatable`, `events`, the `hooks` plugin and `fse-std`'s `extend` and `native_events` |
 
 ## Related
 

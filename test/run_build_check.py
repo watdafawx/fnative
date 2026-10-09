@@ -15,9 +15,9 @@ def start():
     LOG.unlink(missing_ok=True)
     save = RUN / "native-demo.zip"
     if not save.exists():
-        subprocess.run([str(DIST / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
+        subprocess.run([str(DIST / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
                         str(MODS), "--create", str(save)], capture_output=True)
-    p = subprocess.run([str(DIST / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
+    p = subprocess.run([str(DIST / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
                         str(MODS), "--benchmark", str(save), "--benchmark-ticks", "5", "--disable-audio"],
                        capture_output=True, text=True, errors="replace")
     return p.returncode, [l.split(" ", 1)[1] for l in LOG.read_text().splitlines() if "build" in l or "  " in l or "missing" in l]

@@ -11,10 +11,12 @@
 //! - never keep a `lua_State` pointer past the call.
 
 mod engine;
+mod events;
 mod inject;
 mod json;
 mod log;
 mod lua;
+mod mp;
 mod mods;
 mod plugins;
 mod restart;
@@ -69,7 +71,8 @@ fn init() -> Result<(), String> {
     log::line(&format!("{} engine symbols read in {:.2?}", syms.len(), started.elapsed()));
     // (same build as the pdb? what everything needs there? a new build gets its report: see engine.rs)
     let core_needs = fse_engine::Needs {
-        functions: lua::NEEDED.iter().map(|s| s.to_string()).chain(Some("luaopen_base".to_string())).collect(),
+        functions: lua::NEEDED.iter().chain(mp::NEEDED).map(|s| s.to_string()).chain(Some("luaopen_base".to_string()))
+            .collect(),
         classes: Default::default(),
     };
     engine::check(&pdb, syms.map(), core_needs)?;
@@ -77,6 +80,10 @@ fn init() -> Result<(), String> {
     let _ = SYMBOLS.set(syms);
     let _ = API.set(api);
     lua::install_hooks()?;
+    // (without it fse still works in single player; multiplayer then has no simulation events)
+    if let Err(e) = mp::install_hooks() {
+        log::line(&format!("multiplayer hooks: {e}"));
+    }
     if std::env::var_os("FSE_LOADER").is_some() {
         // (installed in the game: a restarted game loads fse by itself)
         mods::sync();

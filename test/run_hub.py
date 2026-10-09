@@ -32,7 +32,7 @@ shutil.copytree(NATIVE / "test" / "hub-test", MODS / "hub-test")
     "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fse-hub"]}))
 names = ["base", "elevated-rails", "quality", "space-age", "fse-std", "fse-hub", "fse-bridge", "hub-test"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
-launch = [str(NATIVE / "dist" / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
+launch = [str(NATIVE / "dist" / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
 save = RUN / "hub.zip"
 save.unlink(missing_ok=True)
 subprocess.run(launch + ["--create", str(save)], capture_output=True)

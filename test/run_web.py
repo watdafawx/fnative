@@ -17,7 +17,7 @@ names = ["base", "elevated-rails", "quality", "space-age", "fse-bridge", "fse-ag
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
 save = RUN / "native-web.zip"
 save.unlink(missing_ok=True)
-launch = [str(DIST / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
+launch = [str(DIST / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
 subprocess.run(launch + ["--create", str(save)], capture_output=True)
 (DIST / "web-token.txt").unlink(missing_ok=True)
 # a long benchmark: the game keeps ticking while we talk to it
