@@ -1,0 +1,3 @@
+{"name": "fse-bridge", "version": "0.1.0", "title": "FSE bridge", "author": "mtopfox", "factorio_version": "2.0",
+ "description": "Runs commands from the fse web API (http://127.0.0.1:8790) on the game thread through remote interfaces. Does nothing without the fse loader.",
+ "dependencies": ["base"]}

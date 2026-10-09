@@ -24,7 +24,7 @@ for junk in OUT.glob("hello.*"):
         junk.unlink()
 # Python (built by cargo with the workspace)
 # Rust plugins (built by cargo with the workspace)
-for name in ("fnative_python.dll", "fnative_profiler.dll", "fnative_web.dll", "fnative_std.dll", "fnative_diag.dll", "fnative_fixes.dll", "fnative_entityinfo.dll"):
+for name in ("fse_python.dll", "fse_profiler.dll", "fse_web.dll", "fse_std.dll", "fse_diag.dll", "fse_fixes.dll", "fse_entityinfo.dll"):
     dll = NATIVE / "target" / "release" / name
     if dll.exists():
         shutil.copy(dll, OUT / name)

@@ -1,5 +1,5 @@
 """plugin "fixes", data-cache-tilde: a one-file mod with a "~" dependency, headless vanilla with cache-prototype-data on.
-Plain game: "Data stage cache not used" at every start; through fnative: "loaded" from the second start."""
+Plain game: "Data stage cache not used" at every start; through fse: "loaded" from the second start."""
 import json, re, shutil, subprocess
 from pathlib import Path
 
@@ -33,7 +33,7 @@ def start(exe):
 
 
 plain = [start(EXE), start(EXE)]
-fixed = [start(NATIVE / "dist" / "factorio-native.exe"), start(NATIVE / "dist" / "factorio-native.exe")]
-print("plain game:", plain, " through fnative:", fixed)
+fixed = [start(NATIVE / "dist" / "fse.exe"), start(NATIVE / "dist" / "fse.exe")]
+print("plain game:", plain, " through fse:", fixed)
 assert plain == ["not used", "not used"] and fixed == ["loaded", "loaded"], "unexpected"
 print("ok")

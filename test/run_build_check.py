@@ -8,16 +8,16 @@ DIST = NATIVE / "dist"
 from factorio_paths import run_dir  # noqa: E402
 RUN = run_dir(Path(__file__).resolve().parent / "run")
 MODS = RUN / "native-mods"
-LOG = DIST / "fnative.log"
+LOG = DIST / "fse.log"
 
 
 def start():
     LOG.unlink(missing_ok=True)
     save = RUN / "native-demo.zip"
     if not save.exists():
-        subprocess.run([str(DIST / "factorio-native.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
+        subprocess.run([str(DIST / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
                         str(MODS), "--create", str(save)], capture_output=True)
-    p = subprocess.run([str(DIST / "factorio-native.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
+    p = subprocess.run([str(DIST / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory",
                         str(MODS), "--benchmark", str(save), "--benchmark-ticks", "5", "--disable-audio"],
                        capture_output=True, text=True, errors="replace")
     return p.returncode, [l.split(" ", 1)[1] for l in LOG.read_text().splitlines() if "build" in l or "  " in l or "missing" in l]

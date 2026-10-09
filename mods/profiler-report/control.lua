@@ -1,4 +1,4 @@
--- test: profiles ticks 60..660 with the fnative profiler and writes script-output/profile.json
+-- test: profiles ticks 60..660 with the fse profiler and writes script-output/profile.json
 local started
 script.on_event(defines.events.on_tick, function(e)
   if not native then return end

@@ -10,6 +10,8 @@ import os
 import re
 from pathlib import Path
 
+os.environ.setdefault("FSE_OFF", "1")  # (games started from here run plain even with the fse loader installed)
+
 STEAM_GUESSES = [Path(p) / "steamapps/common/Factorio" for p in (
     "C:/Program Files (x86)/Steam", "C:/Program Files/Steam", "D:/SteamLibrary", "E:/SteamLibrary", "F:/SteamLibrary",
     "G:/SteamLibrary")]

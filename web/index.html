@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>fnative</title>
+<title>fse</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -35,7 +35,7 @@
   </fieldset>
   <fieldset><legend>Main menu buttons</legend>
     <div class="row">
-      <label><input type="checkbox" id="ovHub"> fnative hub</label>
+      <label><input type="checkbox" id="ovHub"> fse hub</label>
       <label><input type="checkbox" id="ovStartup"> startup time</label>
       <span class="muted">the buttons over the game's top-left corner (saved for the next start)</span>
     </div>
@@ -58,7 +58,7 @@ if (!needToken()) {
       $("game").innerHTML = `tick <b>${g.tick}</b> · speed ${g.speed} · ${g.mods} mods · surfaces ${list(g.surfaces).map(esc).join(", ")}<br>` +
         list(g.players).map((p) => `${esc(p.name)} on ${esc(p.surface)} at ${fmt(p.position.x, 1)}, ${fmt(p.position.y, 1)}`).join("<br>");
       const ag = await game("agent", "list").catch(() => null);
-      $("agents").innerHTML = ag === null ? "fnative-agent mod not enabled" :
+      $("agents").innerHTML = ag === null ? "fse-agent mod not enabled" :
         Object.keys(ag).length ? Object.entries(ag).map(([n, p]) => `<b>${esc(n)}</b> at ${fmt(p.x, 1)}, ${fmt(p.y, 1)}`).join("<br>") : "none yet";
     } catch (e) { $("hdr-status").innerHTML = `<span class="bad">${esc(e.message)}</span>`; }
   }

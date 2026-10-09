@@ -1,0 +1,12 @@
+[package]
+name = "fse-python"
+version = "0.1.0"
+edition = "2021"
+description = "fse plugin: Python functions callable from Lua mods (embedded CPython via pyo3)"
+
+[lib]
+name = "fse_python"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.22"

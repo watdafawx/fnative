@@ -1,0 +1,8 @@
+[package]
+name = "fse-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Helpers for fse plugins written in Rust: the host table (include/fse.h) and safe wrappers"
+
+[lib]
+name = "fse_plugin"

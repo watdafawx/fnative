@@ -1,12 +1,12 @@
-/* The smallest fnative plugin, in C: shows the ABI (include/fnative.h).
+/* The smallest fse plugin, in C: shows the ABI (include/fse.h).
  * Build: clang-cl /LD /O2 /I ..\..\include hello.c /Fe:hello.dll   (test/build_plugins.py does it) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
-#include "fnative.h"
+#include "fse.h"
 
-static const fnative_host *host;
+static const fse_host *host;
 
 /* one output buffer per thread: valid until this thread's next call, as the ABI asks */
 static __declspec(thread) char buf[4096];
@@ -46,12 +46,12 @@ static int slow(void *ud, const char *name, const char *in, size_t len, const ch
     return out_str(buf, out, out_len);
 }
 
-__declspec(dllexport) int fnative_plugin_init(const fnative_host *h) {
-    if (h->abi != FNATIVE_ABI) return 1;
+__declspec(dllexport) int fse_plugin_init(const fse_host *h) {
+    if (h->abi != FSE_ABI) return 1;
     host = h;
-    h->register_fn("hello", "echo", echo, NULL, FNATIVE_THREADSAFE);
-    h->register_fn("hello", "reverse", reverse, NULL, FNATIVE_THREADSAFE);
-    h->register_fn("hello", "slow", slow, NULL, FNATIVE_THREADSAFE);
+    h->register_fn("hello", "echo", echo, NULL, FSE_THREADSAFE);
+    h->register_fn("hello", "reverse", reverse, NULL, FSE_THREADSAFE);
+    h->register_fn("hello", "slow", slow, NULL, FSE_THREADSAFE);
     h->log("hello", "hello from C");
     return 0;
 }

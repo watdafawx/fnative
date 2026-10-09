@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>fnative mods</title>
+<title>fse mods</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,7 +23,7 @@
     <div class="scroll"><table id="t"></table></div>
     <p class="muted" style="font-size:12px">
       <b>Load</b>: the order the game loaded mods in at its last start (from its log); "–" = not loaded then (disabled,
-      or enabled since). <b>Added</b>: when fnative first saw the mod (mods already there the first time: their file's
+      or enabled since). <b>Added</b>: when fse first saw the mod (mods already there the first time: their file's
       date). <b>Updated</b>: when this version's file arrived. <b>Portal</b>: the newest release for this game version.
       Enabling and disabling stay in the game's own mod manager (it owns mod-list.json while it runs).</p>
   </fieldset>
@@ -70,13 +70,13 @@ if (!needToken()) {
   $("q").oninput = render; $("show").onchange = render;
   $("portal").onclick = async () => {
     $("info").textContent = "asking the mod portal...";
-    try { const p = await native("py", "fnative_tools.mods:portal"); if (p.error) throw new Error(p.error); portal = p; render(); }
+    try { const p = await native("py", "fse_tools.mods:portal"); if (p.error) throw new Error(p.error); portal = p; render(); }
     catch (e) { $("info").textContent = e.message; }
   };
   (async () => {
     $("info").textContent = "reading the mods folder...";
     try {
-      const d = await native("py", "fnative_tools.mods:listing");
+      const d = await native("py", "fse_tools.mods:listing");
       mods = d.mods;
       $("hdr-status").innerHTML = `<code>${esc(d.mods_dir)}</code> · load order from the start at ${d.load_order_time ? new Date(d.load_order_time * 1000).toLocaleString() : "?"}`;
       render();

@@ -1,8 +1,0 @@
-[package]
-name = "fnative-plugin"
-version = "0.1.0"
-edition = "2021"
-description = "Helpers for fnative plugins written in Rust: the host table (include/fnative.h) and safe wrappers"
-
-[lib]
-name = "fnative_plugin"

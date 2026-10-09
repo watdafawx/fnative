@@ -1,4 +1,4 @@
--- drives fnative-std-demo in a real client with a mocked mouse (std.mock) and screenshots the steps
+-- drives fse-std-demo in a real client with a mocked mouse (std.mock) and screenshots the steps
 -- (no crash-site intro: it pauses the game and waits for the player to press Tab)
 script.on_init(function()
   local fp = remote.interfaces["freeplay"]
@@ -14,7 +14,7 @@ local function shot(name)
   game.take_screenshot({ player = 1, show_gui = true, path = "fstd-" .. name .. ".png", resolution = { game.get_player(1).display_resolution.width, game.get_player(1).display_resolution.height }, zoom = 1 })
 end
 local function mock(t) native.call("std", "mock", helpers.table_to_json(t)) end
-local D = function(fn, ...) return remote.call("fnative-std-demo", fn, ...) end
+local D = function(fn, ...) return remote.call("fse-std-demo", fn, ...) end
 local steps = {
   [60] = function() D("open", 1); mock({ left = false, x = 200, y = 200, focused = true }); say("order before: " .. D("order", 1)) end,
   [70] = function() D("hover_slot", 1, 1) end,

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/fnative-core", "crates/fnative-launcher", "crates/fnative-python", "crates/fnative-engine", "crates/fnative-plugin", "crates/fnative-profiler", "crates/fnative-web", "crates/fnative-std", "crates/fnative-diag", "crates/fnative-fixes", "crates/fnative-entityinfo"]
+members = ["crates/fse-core", "crates/fse-launcher", "crates/fse-loader", "crates/fse-python", "crates/fse-engine", "crates/fse-plugin", "crates/fse-profiler", "crates/fse-web", "crates/fse-std", "crates/fse-diag", "crates/fse-fixes", "crates/fse-entityinfo"]
 
 [profile.release]
 debug = 1

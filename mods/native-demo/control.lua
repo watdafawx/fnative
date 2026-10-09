@@ -14,7 +14,7 @@ local function report()
     say("no native table: plain game")
     return flush()
   end
-  say("fnative " .. native.version())
+  say("fse " .. native.version())
   native.log("hello from native-demo's control stage")
   for plugin, fns in pairs(native.plugins()) do say("plugin " .. plugin .. ": " .. table.concat(fns, ", ")) end
   for _, n in ipairs(native.symbols("Inserter::update", 8)) do say("  engine: " .. n) end

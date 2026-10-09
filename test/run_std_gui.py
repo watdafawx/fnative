@@ -1,4 +1,4 @@
-"""fnative-std in a real client (vanilla + fnative-std + the demo + a test driver): drag & drop and resizing with
+"""fse-std in a real client (vanilla + fse-std + the demo + a test driver): drag & drop and resizing with
 a mocked mouse; screenshots in test/run/script-output/fstd-*.png. The game window closes itself."""
 import json, shutil, subprocess, time
 from pathlib import Path
@@ -10,18 +10,18 @@ MODS = RUN / "native-mods"
 OUT = RUN / "script-output"
 shutil.rmtree(MODS, ignore_errors=True)
 MODS.mkdir(parents=True)
-for m in ("fnative-std", "fnative-std-demo"):
+for m in ("fse-std", "fse-std-demo"):
     shutil.copytree(NATIVE / "mods" / m, MODS / m)
 shutil.copytree(NATIVE / "test" / "std-test", MODS / "std-test")
 (MODS / "std-test" / "info.json").write_text(json.dumps({"name": "std-test", "version": "0.0.1", "title": "std test",
-    "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fnative-std-demo"]}))
-names = ["base", "elevated-rails", "quality", "space-age", "fnative-std", "fnative-std-demo", "std-test"]
+    "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fse-std-demo"]}))
+names = ["base", "elevated-rails", "quality", "space-age", "fse-std", "fse-std-demo", "std-test"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
 for f in OUT.glob("fstd-*"):
     f.unlink()
 save = RUN / "fstd.zip"
 save.unlink(missing_ok=True)
-launch = [str(NATIVE / "dist" / "factorio-native.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
+launch = [str(NATIVE / "dist" / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
 subprocess.run(launch + ["--create", str(save)], capture_output=True)
 game = subprocess.Popen(launch + ["--load-game", str(save)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 start = time.time()

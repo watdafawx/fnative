@@ -328,102 +328,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 
 [[package]]
-name = "fnative-core"
-version = "0.5.0"
-dependencies = [
- "fnative-engine",
- "retour",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-diag"
-version = "0.1.0"
-dependencies = [
- "fnative-plugin",
- "retour",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-engine"
-version = "0.1.0"
-dependencies = [
- "pdb",
- "serde",
- "serde_json",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-entityinfo"
-version = "0.1.0"
-dependencies = [
- "fnative-plugin",
- "retour",
- "serde_json",
-]
-
-[[package]]
-name = "fnative-fixes"
-version = "0.1.0"
-dependencies = [
- "fnative-plugin",
- "retour",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-launcher"
-version = "0.1.0"
-dependencies = [
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-plugin"
-version = "0.1.0"
-
-[[package]]
-name = "fnative-profiler"
-version = "0.1.0"
-dependencies = [
- "fnative-plugin",
- "retour",
- "serde",
- "serde_json",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-python"
-version = "0.1.0"
-dependencies = [
- "pyo3",
-]
-
-[[package]]
-name = "fnative-std"
-version = "0.1.0"
-dependencies = [
- "fnative-plugin",
- "serde_json",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "fnative-web"
-version = "0.1.0"
-dependencies = [
- "fnative-plugin",
- "raw-window-handle",
- "serde_json",
- "tiny_http",
- "windows-sys 0.59.0",
- "wry",
-]
-
-[[package]]
 name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,6 +340,109 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "fse-core"
+version = "0.6.0"
+dependencies = [
+ "fse-engine",
+ "retour",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-diag"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "retour",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-engine"
+version = "0.1.0"
+dependencies = [
+ "pdb",
+ "serde",
+ "serde_json",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-entityinfo"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "retour",
+ "serde_json",
+]
+
+[[package]]
+name = "fse-fixes"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "retour",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-launcher"
+version = "0.1.0"
+dependencies = [
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-loader"
+version = "0.1.0"
+dependencies = [
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-plugin"
+version = "0.1.0"
+
+[[package]]
+name = "fse-profiler"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "retour",
+ "serde",
+ "serde_json",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-python"
+version = "0.1.0"
+dependencies = [
+ "pyo3",
+]
+
+[[package]]
+name = "fse-std"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "serde_json",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fse-web"
+version = "0.1.0"
+dependencies = [
+ "fse-plugin",
+ "raw-window-handle",
+ "serde_json",
+ "tiny_http",
+ "windows-sys 0.59.0",
+ "wry",
 ]
 
 [[package]]

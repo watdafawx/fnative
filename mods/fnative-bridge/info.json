@@ -1,3 +1,0 @@
-{"name": "fnative-bridge", "version": "0.1.0", "title": "fnative bridge", "author": "mtopfox", "factorio_version": "2.0",
- "description": "Runs commands from the fnative web API (http://127.0.0.1:8790) on the game thread through remote interfaces. Does nothing without the fnative loader.",
- "dependencies": ["base"]}

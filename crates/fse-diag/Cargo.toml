@@ -1,0 +1,14 @@
+[package]
+name = "fse-diag"
+version = "0.1.0"
+edition = "2021"
+description = "fse plugin \"diag\": logs the message of every engine exception (RuntimeError, DeserialiserException) with its call stack"
+
+[lib]
+name = "fse_diag"
+crate-type = ["cdylib"]
+
+[dependencies]
+fse-plugin = { path = "../fse-plugin" }
+retour = "0.3"
+windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug", "Win32_System_LibraryLoader"] }

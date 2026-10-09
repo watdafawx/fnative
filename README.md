@@ -1,13 +1,14 @@
-# fnative
+# FSE (Factorio Script Extender)
 
 A native extension layer for Factorio 2.0 on Windows. Native code (Rust, C, anything with a C ABI, and Python) runs
 inside the game and Lua mods reach it through a global `native` table. With it, mods can do things the Lua API
 can't: read the mouse, use the clipboard, run work on threads, call Python libraries, show web pages over the game,
 profile engine functions and patch small engine bugs.
 
-The game install is never changed. A launcher starts the game, loads `fnative.dll` into it at start-up and finds the
-engine's functions by name in `factorio.pdb`, the debug symbols Wube ships with the game. Game updates need no new
-offsets.
+Installing is unzipping into the game's folder; uninstalling is deleting what that added. No launcher, no Steam
+launch options: a small `version.dll` beside `factorio.exe` (Windows loads it from the game's folder) loads
+`fse.dll` before the game starts. fse finds the engine's functions by name in `factorio.pdb`, the debug symbols Wube
+ships with the game, so game updates need no new offsets, and Steam updates leave the install alone.
 
 > **Single player only.** Native results aren't part of the deterministic simulation, so they would desync
 > multiplayer games and replays. Windows only. Not for the mod portal (it can't carry native binaries).
@@ -15,72 +16,63 @@ offsets.
 
 ## Getting started
 
-### 1. What you need
+### 1. Install
 
-- Windows 10/11 and Factorio 2.0 (Steam or standalone). `bin\x64\factorio.pdb` must be next to `factorio.exe`; the
-  Windows builds include it.
-- [Rust](https://rustup.rs) (stable, MSVC toolchain).
-- [Python](https://www.python.org) 3.10 to 3.13, on `PATH`. It runs the build script and is what the `py` plugin
-  embeds.
-- Optional: `clang-cl` (LLVM), only for the C example plugin. The build skips it otherwise.
-- Optional: the WebView2 runtime (part of Windows 11) for pages shown in a panel over the game. Without it, pages
-  open in your browser.
+You need Windows 10/11 and Factorio 2.0 (Steam or standalone). For the `py` plugin, also
+[Python](https://www.python.org) 3.10 to 3.13 on `PATH`.
 
-### 2. Build
+1. Download `fse-<version>-windows.zip` from [Releases](https://github.com/watdafawx/fse/releases).
+2. Open the game's folder. Steam: Library → right-click Factorio → Manage → Browse local files.
+3. Extract the zip there. It adds `bin\x64\version.dll` (the loader) and an `fse` folder.
+4. Start the game as always.
 
-```
-git clone https://github.com/watdafawx/fnative
-cd fnative
-python build.py
-```
-
-Everything goes to `dist\`:
-
-| file | what it is |
-|---|---|
-| `factorio-native.exe` | the launcher |
-| `fnative.dll` | the core, loaded into the game |
-| `plugins\*.dll` | the plugins (`py`, `std`, `web`, `profiler`, `fixes`, `diag`, `entityinfo`, and `hello` if clang-cl was found) |
-| `fnative.env` | your settings, created on the first build and never overwritten |
-
-### 3. Start the game through the launcher
-
-Steam: Library → Factorio → Properties → Launch options:
-
-```
-"C:\path\to\fnative\dist\factorio-native.exe" %COMMAND%
-```
-
-Or run `dist\factorio-native.exe` directly with any Factorio arguments. It finds the game in the usual Steam
-libraries; if yours is elsewhere, set `FACTORIO_EXE` in `dist\fnative.env`. Starting the game without the launcher
-gives you the plain game as always.
-
-The log is `dist\fnative.log`. A good start looks like this:
-
-```
-fnative 0.5.0 loading
-105032 engine symbols read in 61.48ms
-game build EAAB184A...-1 (known)
-plugin ...\fnative_std.dll: init ok
-ready in 70.97ms
-```
-
-### 4. Install the mods
-
-Copy (or symlink) the folders under `mods\` that you want into your Factorio mods folder
-(`%APPDATA%\Factorio\mods`):
+At the first start fse puts its mods into your mods folder (newer versions too, at later starts):
 
 | mod | what it does |
 |---|---|
-| `fnative-std` | GUI library for other mods: movable, resizable windows that remember their place, and drag & drop. Works without the loader too (no resize grip; click to pick, click to drop). |
-| `fnative-hub` | an **F** button (top left) with tabs: loader and plugins, your mods (added/updated dates, real load order, portal updates), the start-up time report per mod, the engine profiler. Needs `fnative-std`. |
-| `fnative-bridge` | runs commands from the local web API on the game thread. |
-| `fnative-agent` | characters without a player that an external program (an AI agent, `examples/agent_client.py`) can drive. |
-| `fnative-std-demo`, `native-demo` | examples: `/stddemo` opens a window of items to reorder by dragging. |
+| `fse-std` | GUI library for other mods: movable, resizable windows that remember their place, and drag & drop. Works without fse too (no resize grip; click to pick, click to drop). |
+| `fse-hub` | an **F** button (top left) with tabs: loader and plugins, your mods (added/updated dates, real load order, portal updates), the start-up time report per mod, the engine profiler. Needs `fse-std`. |
+| `fse-bridge` | runs commands from the local web API on the game thread. |
+| `fse-agent` | characters without a player that an external program (an AI agent, `examples/agent_client.py`) can drive. |
 
-Every mod checks for the loader first and does nothing (or falls back) when the game wasn't started through it.
+Every mod checks for fse first and does nothing (or falls back) without it.
 
-### 5. Check it works
+Settings go in `fse\fse.env` (optional, see the comments in it). The log is `fse\fse.log`. A good start:
+
+```
+fse 0.6.0 loading
+105032 engine symbols read in 61.48ms
+game build EAAB184A...-1 (known)
+plugin ...\fse_std.dll: init ok
+ready in 70.97ms
+```
+
+**Off for one start:** set `FSE_OFF=1` in the environment. **Uninstall:** run `fse\uninstall.cmd`, or delete
+`bin\x64\version.dll` and the `fse` folder. The mods stay; disable them in the game if you like.
+
+### 2. Build from source
+
+Needs [Rust](https://rustup.rs) (stable, MSVC toolchain) and Python. Optional: `clang-cl` (LLVM) for the C example
+plugin, the WebView2 runtime (part of Windows 11) for pages in a panel over the game (else they open in your browser).
+
+```
+git clone https://github.com/watdafawx/fse
+cd fse
+python build.py
+python install.py
+```
+
+`build.py` puts everything in `dist\`, laid out like the install: `bin\x64\version.dll` (the loader), `fse.dll`
+(the core), `plugins\*.dll` (`py`, `std`, `web`, `profiler`, `fixes`, `diag`, `entityinfo`, and `hello` if clang-cl
+was found), `py\`, `mods\`, `web\` and `fse.env` (created once, never overwritten). `install.py` copies the loader
+into the game and makes the game's `fse` folder a junction to `dist\`, so each rebuild is live at the next start;
+`install.py --remove` undoes it. `package.py` makes the release zip.
+
+`dist\fse.exe` is the launcher the tests use: it starts the game and injects `fse.dll` (from beside itself) with
+nothing installed. Pass it any Factorio arguments; it finds the game in the usual Steam libraries, or set
+`FACTORIO_EXE`.
+
+### 3. Check it works
 
 In game, open the console and run:
 
@@ -88,30 +80,30 @@ In game, open the console and run:
 /c game.print(native and native.version() or "no loader")
 ```
 
-Or click the **F** button if you installed `fnative-hub`.
+Or click the **F** button if you installed `fse-hub`.
 
-## Settings (`dist\fnative.env`)
+## Settings (`fse\fse.env`)
 
-One `KEY=value` per line. The launcher reads it at every start and passes it to the game.
+One `KEY=value` per line, read at every start (by the loader, or the launcher beside `dist\fse.exe`).
 
 | key | default | does |
 |---|---|---|
-| `FACTORIO_EXE` | the first Steam library that has the game | the game to start |
-| `FACTORIO_MODS` | `%APPDATA%\Factorio\mods` | the mods folder the mod manager and start-up report read |
-| `FNATIVE_PYPATH` | this repo's `py` folder | folders with Python modules Lua can call, `;`-separated |
-| `FNATIVE_PLUGINS` | `dist\plugins` | where plugins are loaded from; empty loads none |
-| `FNATIVE_LOG` | `dist\fnative.log` | the log file |
-| `FNATIVE_WEB_PORT` | 8790 | the local web API's port (it takes the first free one of 8790-8799) |
-| `FNATIVE_PANEL=0` | | open pages in the browser instead of the panel over the game |
-| `FNATIVE_OVERLAY=0` | | no hub buttons over the main menu (to hide just one, use the dashboard's *Main menu buttons*) |
-| `FNATIVE_STD_WHEEL=0` | | don't watch the mouse wheel (the `std` plugin's wheel events) |
-| `FNATIVE_FIXES=0`, `FNATIVE_FIX_<NAME>=0` | | turn off all engine fixes, or one |
-| `FNATIVE_DIAG=1` | | log every engine error the game raises, even ones it catches itself |
+| `FACTORIO_EXE` | the first Steam library that has the game | the game the launcher starts |
+| `FACTORIO_MODS` | the game's own (`--mod-directory`, else its config) | the mods folder fse's mods go into, and the mod manager and start-up report read |
+| `FSE_PYPATH` | | more folders with Python modules Lua can call, `;`-separated (fse's `py` folder is always there) |
+| `FSE_PLUGINS` | `fse\plugins` | where plugins are loaded from; empty loads none |
+| `FSE_LOG` | `fse\fse.log` | the log file |
+| `FSE_WEB_PORT` | 8790 | the local web API's port (it takes the first free one of 8790-8799) |
+| `FSE_PANEL=0` | | open pages in the browser instead of the panel over the game |
+| `FSE_OVERLAY=0` | | no hub buttons over the main menu (to hide just one, use the dashboard's *Main menu buttons*) |
+| `FSE_STD_WHEEL=0` | | don't watch the mouse wheel (the `std` plugin's wheel events) |
+| `FSE_FIXES=0`, `FSE_FIX_<NAME>=0` | | turn off all engine fixes, or one |
+| `FSE_DIAG=1` | | log every engine error the game raises, even ones it catches itself |
 
 ## Using it from a mod
 
-`native` exists in every Lua state (settings, data and control stage of every mod) when the game was started
-through the launcher. Always check for it, so your mod still works without it:
+`native` exists in every Lua state (settings, data and control stage of every mod) when fse is installed
+(or the game was started through the launcher). Always check for it, so your mod still works without it:
 
 ```lua
 if native then
@@ -123,7 +115,7 @@ end
 | function | does |
 |---|---|
 | `native.version()` | the core's version |
-| `native.log(text)` | a line in fnative.log |
+| `native.log(text)` | a line in fse.log |
 | `native.plugins()` | `{ plugin = { function names } }` |
 | `native.call(plugin, fn, input?)` | runs on the game thread; returns the output string, or `nil, error` |
 | `native.start(plugin, fn, input?)` | runs on a worker thread (for functions registered as thread-safe); returns a job id |
@@ -137,7 +129,7 @@ convention). Long work goes through `start`/`poll` so a tick never waits.
 
 ### Python
 
-Put a module on `FNATIVE_PYPATH` with functions that take a string and return a string:
+Put a module on `FSE_PYPATH` with functions that take a string and return a string:
 
 ```python
 # mytool.py
@@ -151,15 +143,15 @@ local out = native.call("py", "mytool:double", "[1, 2, 3]")    -- "[2, 4, 6]"
 ```
 
 The interpreter starts on the first call (20-40 ms) and stays, so module state persists and big data loads once.
-`native.call("py", "_reload", "mytool")` reloads a module while the game runs. `print` goes to fnative.log.
+`native.call("py", "_reload", "mytool")` reloads a module while the game runs. `print` goes to fse.log.
 Python exceptions come back as `nil, traceback`.
 
-### The `fnative-std` library
+### The `fse-std` library
 
 ```lua
-local window = require("__fnative-std__/window")
-local events = require("__fnative-std__/events")
-local safe   = require("__fnative-std__/safe")
+local window = require("__fse-std__/window")
+local events = require("__fse-std__/events")
+local safe   = require("__fse-std__/safe")
 ```
 
 | module | gives |
@@ -170,8 +162,8 @@ local safe   = require("__fnative-std__/safe")
 | `events` | `events.register({...})`: one registration per event for all of the above plus your own handlers, each guarded |
 | `safe` | `guard(name, fn)` (an error is logged instead of crashing the game), `has(plugin)`, `log`, `chain` |
 
-Add `"? fnative-std"` to your mod's dependencies if it should work without it, and check
-`script.active_mods["fnative-std"]` before requiring.
+Add `"? fse-std"` to your mod's dependencies if it should work without it, and check
+`script.active_mods["fse-std"]` before requiring.
 
 ## Plugins
 
@@ -179,10 +171,10 @@ Add `"? fnative-std"` to your mod's dependencies if it should work without it, a
 |---|---|
 | `py` | Python functions from Lua (above) |
 | `std` | mouse position and buttons in GUI pixels, the wheel (with a lease so the game camera doesn't zoom while your GUI uses it), modifier keys, window size and focus, clipboard, real time, opening http(s) links |
-| `web` | a local HTTP API and pages on `127.0.0.1` (token in `dist\web-token.txt`): status, the profiler, native calls, `remote.call` through `fnative-bridge`; `web.open(page)` shows a page in a panel over the game |
-| `profiler` | times engine functions by name (`dist\plugins\profiler.json`): Game::update, entity updates by kind, belts, electric networks, robots, pathfinder, Lua events. Only between `profiler.start` and `profiler.stop` |
+| `web` | a local HTTP API and pages on `127.0.0.1` (token in `fse\web-token.txt`): status, the profiler, native calls, `remote.call` through `fse-bridge`; `web.open(page)` shows a page in a panel over the game |
+| `profiler` | times engine functions by name (`fse\plugins\profiler.json`): Game::update, entity updates by kind, belts, electric networks, robots, pathfinder, Lua events. Only between `profiler.start` and `profiler.stop` |
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
-| `diag` | off unless `FNATIVE_DIAG=1`: logs the message and stack of every engine error |
+| `diag` | off unless `FSE_DIAG=1`: logs the message and stack of every engine error |
 | `entityinfo` | a mod's own rows in the game's info panel for the entity under the cursor (below) |
 | `hello` | the C example |
 
@@ -219,14 +211,17 @@ SpiderVehicle is hooked (not every override calls its base); after the outermost
 ## How it works
 
 ```
-factorio-native.exe   starts factorio.exe suspended, injects fnative.dll, waits for it to be ready, resumes the game
-fnative.dll (Rust)    reads the function symbols of factorio.pdb (~100k functions, 60 ms)
+version.dll   the loader, beside factorio.exe: forwards to the system's version.dll; points the game's entry
+                  point at itself, and there loads fse.dll and waits until it is ready before the game starts
+(fse.exe      the launcher: starts factorio.exe suspended, injects fse.dll, waits, resumes the game)
+fse.dll (Rust)    reads the function symbols of factorio.pdb (~100k functions, 60 ms)
                       finds the game's Lua 5.2 C API by name and hooks luaopen_base:
                       every Lua state gets a global `native` table
-                      loads the plugins (include/fnative.h) from the plugins folder
+                      loads the plugins (include/fse.h) from the plugins folder
 ```
 
-The launcher keeps the game in a job object, so closing the launcher ends the game too.
+A game that restarts itself (after a mod change) loads fse again by itself. The launcher keeps the game in a job
+object, so closing the launcher ends the game too, and starts a restarting game through itself.
 
 **Game updates.** At every start, before anything is hooked:
 
@@ -235,18 +230,18 @@ The launcher keeps the game in a job object, so closing the launcher ends the ga
 2. Functions are read fresh from the pdb, so new addresses need nothing done.
 3. What our code relies on (`needs\*.needs.json`, `plugins\<plugin>.needs.json`: functions, classes and fields) is
    checked. A missing core function stops the core; a plugin missing something is the only one turned off.
-4. On the first start of a new build, `dist\cache\<build>\report.txt` lists what moved since the previous build.
+4. On the first start of a new build, `fse\cache\<build>\report.txt` lists what moved since the previous build.
 
-Plugins never hard-code engine offsets: they ask the host (`field_offset("Inserter", "heldStack")`). `fnative-pdb`
+Plugins never hard-code engine offsets: they ask the host (`field_offset("Inserter", "heldStack")`). `fse-pdb`
 (in `target\release`) explores a build from the command line: `info`, `functions Inserter::`, `classes Transport`,
 `class Inserter`, `report`.
 
 ## Writing a plugin
 
-A plugin is a DLL exporting `fnative_plugin_init(host)` that registers functions taking and returning strings. See
-[include/fnative.h](include/fnative.h) and [plugins/hello-c/hello.c](plugins/hello-c/hello.c) (40 lines). Rust
-plugins share `crates/fnative-plugin` (the host table and an `export!` macro); `crates/fnative-std` is a complete
-example. Put the DLL in `dist\plugins`.
+A plugin is a DLL exporting `fse_plugin_init(host)` that registers functions taking and returning strings. See
+[include/fse.h](include/fse.h) and [plugins/hello-c/hello.c](plugins/hello-c/hello.c) (40 lines). Rust
+plugins share `crates/fse-plugin` (the host table and an `export!` macro); `crates/fse-std` is a complete
+example. Put the DLL in `fse\plugins`.
 
 ## Tests
 
@@ -259,13 +254,13 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_build_check.py` | the build report, a known build, a faked update's diff, a mismatched pdb refused |
 | `run_fixes.py` | the data cache fix with a `~` dependency mod |
 | `run_web.py` | the web API, bridge and agents end to end |
-| `run_std_gui.py` | `fnative-std` drag & drop and resizing in a real game window, with screenshots |
+| `run_std_gui.py` | `fse-std` drag & drop and resizing in a real game window, with screenshots |
 | `run_hub.py` | the menu overlay, the hub and its tabs in a real game window |
 
 ## Related
 
 - [bpgen](https://github.com/watdafawx/bpgen): a production-line blueprint planner that runs inside the game through
-  fnative and previews the blueprint with the game's own renderer.
+  FSE and previews the blueprint with the game's own renderer.
 - Prior art: Rivets (Rust, DLL injection and pdb symbols, Factorio 1.1).
 
 ## License

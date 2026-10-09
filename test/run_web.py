@@ -1,4 +1,4 @@
-"""the web API end to end: a headless vanilla game through dist/ with fnative-bridge + fnative-agent; HTTP from here"""
+"""the web API end to end: a headless vanilla game through dist/ with fse-bridge + fse-agent; HTTP from here"""
 import json, shutil, subprocess, time, urllib.request, urllib.error
 from pathlib import Path
 
@@ -11,13 +11,13 @@ BASE = "http://127.0.0.1:8790"
 
 shutil.rmtree(MODS, ignore_errors=True)
 MODS.mkdir(parents=True)
-for m in ("fnative-bridge", "fnative-agent"):
+for m in ("fse-bridge", "fse-agent"):
     shutil.copytree(NATIVE / "mods" / m, MODS / m)
-names = ["base", "elevated-rails", "quality", "space-age", "fnative-bridge", "fnative-agent"]
+names = ["base", "elevated-rails", "quality", "space-age", "fse-bridge", "fse-agent"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
 save = RUN / "native-web.zip"
 save.unlink(missing_ok=True)
-launch = [str(DIST / "factorio-native.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
+launch = [str(DIST / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
 subprocess.run(launch + ["--create", str(save)], capture_output=True)
 (DIST / "web-token.txt").unlink(missing_ok=True)
 # a long benchmark: the game keeps ticking while we talk to it
@@ -77,5 +77,5 @@ try:
           req("POST", "/api/overlay", was))
 finally:
     game.kill()
-print("--- fnative.log tail")
-print("\n".join((DIST / "fnative.log").read_text().splitlines()[-6:]))
+print("--- fse.log tail")
+print("\n".join((DIST / "fse.log").read_text().splitlines()[-6:]))

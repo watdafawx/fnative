@@ -1,8 +1,8 @@
-"""The smallest agent: drives an fnative-agent character over the fnative web API. Replace `decide` with an AI.
+"""The smallest agent: drives an fse-agent character over the fse web API. Replace `decide` with an AI.
 
     python native/examples/agent_client.py [name]
 
-Needs the game started through factorio-native.exe with the fnative-bridge and fnative-agent mods enabled.
+Needs the game started through fse.exe with the fse-bridge and fse-agent mods enabled.
 The token comes from web-token.txt beside the launcher (native/dist).
 """
 import json

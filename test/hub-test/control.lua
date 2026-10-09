@@ -1,4 +1,4 @@
--- drives the fnative hub in a real client: the Hub tab with the profiler, the Mods and Startup tabs once their data
+-- drives the fse hub in a real client: the Hub tab with the profiler, the Mods and Startup tabs once their data
 -- is in (screenshots), then a web page in the panel over the game
 -- (no crash-site intro: it pauses the game and waits for the player to press Tab)
 script.on_init(function()
@@ -24,16 +24,16 @@ script.on_event(defines.events.on_tick, function(e)
   local p = game.get_player(1)
   if e.tick == 60 then
     helpers.write_file("hub-result.txt", "", false)
-    remote.call("fnative-hub", "open", 1, "hub")
+    remote.call("fse-hub", "open", 1, "hub")
     if native then native.call("profiler", "start") end
   elseif e.tick == 260 then
-    log("mod-gui button: " .. tostring(mod_gui.get_button_flow(p).fnative_hub_button ~= nil))
-    log("hub open: " .. tostring(p.gui.screen.fnative_hub ~= nil))
+    log("mod-gui button: " .. tostring(mod_gui.get_button_flow(p).fse_hub_button ~= nil))
+    log("hub open: " .. tostring(p.gui.screen.fse_hub ~= nil))
     shot("hub-ingame.png")
   elseif e.tick > 300 and (step == "hub" or step == "mods" or step == "startup") then
-    if step == "hub" then step = "mods"; waited = 0; remote.call("fnative-hub", "open", 1, "mods") return end
+    if step == "hub" then step = "mods"; waited = 0; remote.call("fse-hub", "open", 1, "mods") return end
     waited = waited + 1
-    local got = remote.call("fnative-hub", "loaded", step)
+    local got = remote.call("fse-hub", "loaded", step)
     if got or waited > 1800 then
       log(step .. " data: " .. tostring(got) .. " after " .. waited .. " ticks")
       step = step .. "-shot"; waited = 0
@@ -45,7 +45,7 @@ script.on_event(defines.events.on_tick, function(e)
       shot("hub-" .. tab .. ".png")  -- (taken at the end of this tick: switch tabs on a later one)
     elseif waited == 32 then
       if tab == "mods" then
-        step = "startup"; waited = 0; remote.call("fnative-hub", "open", 1, "startup")
+        step = "startup"; waited = 0; remote.call("fse-hub", "open", 1, "startup")
       else
         step = "panel"; waited = 0
         log("web.open: " .. tostring(native.call("web", "open", "mods.html")))

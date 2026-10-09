@@ -1,5 +1,5 @@
 """the hub: the overlay button in the main menu (shown, at the window corner), hidden while a game ticks; the
-in-game hub window's tabs (Hub, Mods, Startup: screenshots) and a page in the panel over the game (screenshot). Real client, vanilla + fnative-std + fnative-hub + fnative-bridge."""
+in-game hub window's tabs (Hub, Mods, Startup: screenshots) and a page in the panel over the game (screenshot). Real client, vanilla + fse-std + fse-hub + fse-bridge."""
 import ctypes, json, shutil, subprocess, time
 from ctypes import wintypes
 from pathlib import Path
@@ -15,7 +15,7 @@ u32.SetProcessDPIAware()
 
 
 def overlay():
-    h = u32.FindWindowW("fnative_overlay", None)
+    h = u32.FindWindowW("fse_overlay", None)
     if not h:
         return None
     r = wintypes.RECT()
@@ -25,14 +25,14 @@ def overlay():
 
 shutil.rmtree(MODS, ignore_errors=True)
 MODS.mkdir(parents=True)
-for m in ("fnative-std", "fnative-hub", "fnative-bridge"):
+for m in ("fse-std", "fse-hub", "fse-bridge"):
     shutil.copytree(NATIVE / "mods" / m, MODS / m)
 shutil.copytree(NATIVE / "test" / "hub-test", MODS / "hub-test")
 (MODS / "hub-test" / "info.json").write_text(json.dumps({"name": "hub-test", "version": "0.0.1", "title": "hub test",
-    "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fnative-hub"]}))
-names = ["base", "elevated-rails", "quality", "space-age", "fnative-std", "fnative-hub", "fnative-bridge", "hub-test"]
+    "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fse-hub"]}))
+names = ["base", "elevated-rails", "quality", "space-age", "fse-std", "fse-hub", "fse-bridge", "hub-test"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
-launch = [str(NATIVE / "dist" / "factorio-native.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
+launch = [str(NATIVE / "dist" / "fse.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
 save = RUN / "hub.zip"
 save.unlink(missing_ok=True)
 subprocess.run(launch + ["--create", str(save)], capture_output=True)
@@ -65,7 +65,7 @@ while time.time() - start < 300 and not (OUT / "hub-done.txt").exists() and game
     o = overlay()
     if o:
         seen.append(o["visible"])
-    h = u32.FindWindowW("fnative_panel", None)
+    h = u32.FindWindowW("fse_panel", None)
     if h and u32.IsWindowVisible(h) and panel is None:
         time.sleep(4)  # (the page loads)
         r = wintypes.RECT()

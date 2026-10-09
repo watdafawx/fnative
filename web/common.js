@@ -1,7 +1,7 @@
-// shared by the fnative pages: the token (from ?token=..., kept for this tab) and API calls
+// shared by the fse pages: the token (from ?token=..., kept for this tab) and API calls
 const TOKEN = (() => {
   const q = new URLSearchParams(location.search).get("token");
-  try { if (q) sessionStorage.setItem("fnative-token", q); return q || sessionStorage.getItem("fnative-token") || ""; }
+  try { if (q) sessionStorage.setItem("fse-token", q); return q || sessionStorage.getItem("fse-token") || ""; }
   catch { return q || ""; }
 })();
 
@@ -22,6 +22,6 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 function needToken() {
   if (TOKEN) return false;
   document.body.innerHTML = `<main class="wrap"><h1><b>f</b>native</h1><p>Open this page with the token:
-    <code>http://127.0.0.1:8790/?token=&lt;contents of web-token.txt beside factorio-native.exe&gt;</code></p></main>`;
+    <code>http://127.0.0.1:8790/?token=&lt;contents of web-token.txt beside fse.exe&gt;</code></p></main>`;
   return true;
 }

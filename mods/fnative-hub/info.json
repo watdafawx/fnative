@@ -1,3 +1,0 @@
-{"name": "fnative-hub", "version": "0.2.0", "title": "fnative hub", "author": "mtopfox", "factorio_version": "2.0",
- "description": "A button (top left) for everything fnative adds: mods, startup report, engine profiler, agents, and the dashboard in a panel over the game. Only with the fnative loader; without it the button isn't there.",
- "dependencies": ["base", "fnative-std"]}
