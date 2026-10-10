@@ -1,3 +1,3 @@
-{"name": "fse-hub", "version": "0.3.0", "title": "FSE hub", "author": "mtopfox", "factorio_version": "2.0",
+{"name": "fse-hub", "version": "0.3.1", "title": "FSE hub", "author": "mtopfox", "factorio_version": "2.0",
  "description": "A button (top left) for everything fse adds: mods, the fse mod catalog (Get mods), startup report, engine profiler, agents, and the dashboard in a panel over the game. Only with the fse loader; without it the button isn't there.",
  "dependencies": ["base", "fse-std"]}

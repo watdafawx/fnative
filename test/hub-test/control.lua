@@ -64,6 +64,7 @@ script.on_event(defines.events.on_tick, function(e)
     waited = waited + 1
     if waited == 120 then
       log("catalog after install: " .. tostring(remote.call("fse-hub", "loaded", "catalog")))
+      log("hub-needs install button: " .. tostring(remote.call("fse-hub", "button", 1, "hub-needs")))
       shot("hub-catalog-installed.png")
     elseif waited == 122 then
       step = "panel"; waited = 0

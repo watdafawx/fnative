@@ -277,6 +277,7 @@ local function render_catalog(player)
     local needs = {}
     if m.fse and newer(m.fse, fse) then needs[#needs + 1] = "fse " .. m.fse end
     for _, p in ipairs(m.plugins or {}) do if not has(p) then needs[#needs + 1] = "plugin " .. p end end
+    m.blocked = #needs > 0  -- (fse and plugins come only with an fse release; missing mods from the portal)
     for _, n in ipairs(m.missing or {}) do needs[#needs + 1] = n end
     m.needs = table.concat(needs, ", ")
     m.state = not m.installed and "install" or newer(m.version, m.installed) and "update" or "latest"
@@ -303,7 +304,7 @@ local function render_catalog(player)
     { key = "state", caption = "", cell = function(m)
         if m.state == "latest" then return "installed" end
         return { button = m.state == "update" and "Update" or "Install", tags = { fhub = "install", mod = m.name },
-          enabled = not jobs.install, tooltip = "Downloads " .. m.name .. " " .. m.version .. " (checked against the index's sha256) into the mods folder; it loads at the next start" }
+          enabled = not jobs.install and not m.blocked, tooltip = m.blocked and "Needs a newer fse or its plugins first" or "Downloads " .. m.name .. " " .. m.version .. " (checked against the index's sha256) into the mods folder; it loads at the next start" }
       end },
   }, rows, state)
 end
@@ -579,6 +580,17 @@ script.on_nth_tick(10, safe.guard("fse-hub", function() if next(jobs) then poll(
 remote.add_interface("fse-hub", { open = function(pi, tab) open(game.get_player(pi), tab) end,
   url = function(path) return web_url(path) end,
   install = function(name) install(name) end,
+  button = function(pi, mod)  -- (a catalog row's Install button: "enabled", "disabled" or nil)
+    local function walk(el)
+      if el.type == "button" and el.tags.mod == mod then return el.enabled and "enabled" or "disabled" end
+      for _, c in pairs(el.children) do
+        local r = walk(c)
+        if r then return r end
+      end
+    end
+    local frame = game.get_player(pi).gui.screen[NAME]
+    return frame and walk(frame)
+  end,
   loaded = function(kind) return data[kind] ~= nil and (data[kind].error or true) end })
 
 events.register({ input.handlers, window.handlers, {
