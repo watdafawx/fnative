@@ -2,7 +2,8 @@
 -- the "fse hub" button the web plugin draws over the game window's corner.
 --
 -- The window has tabs: Hub (loader, engine profiler, agents), Mods (the mod manager: added / updated dates, load
--- order, portal updates) and Startup (what took the game how long to start). Mods and Startup ask Python
+-- order, portal updates), Startup (what took the game how long to start) and Get mods (the fse mod catalog,
+-- fse_tools.catalog: installs need a restart to load). Mods, Startup and Get mods ask Python
 -- (fse_tools.mods / .startup) on a worker thread (native.start), so a tick never waits; the Dashboard button opens
 -- the web pages in a panel over the game (web.open).
 
@@ -75,14 +76,15 @@ local JOBS = {
   mods = "fse_tools.mods:listing",
   portal = "fse_tools.mods:portal",
   startup = "fse_tools.startup:report",
+  catalog = "fse_tools.catalog:listing",
 }
 local jobs = {}   -- kind -> job id
 local data = {}   -- kind -> the answer as a table, or { error = "..." }
 local views = {}  -- player_index -> what each tab shows (sort, search, page)
 
-local function fetch(kind)
+local function fetch(kind, fn, input)
   if jobs[kind] or not has("py") then return end
-  local id, err = native.start("py", JOBS[kind], "")
+  local id, err = native.start("py", fn or JOBS[kind], input or "")
   if id then jobs[kind] = id else data[kind] = { error = err or "could not start" } end
 end
 
@@ -90,7 +92,8 @@ local function view(player_index)
   local v = views[player_index]
   if not v then
     v = { mods = { sort = "load", dir = 1, search = "", filter = 1, page = 1 },
-          startup = { sort = "total_est", dir = -1, search = "", page = 1 } }
+          startup = { sort = "total_est", dir = -1, search = "", page = 1 },
+          catalog = { sort = "name", dir = 1, search = "", page = 1 } }
     views[player_index] = v
   end
   return v
@@ -181,7 +184,9 @@ local function grid(parent, tab, cols, rows, state)
     local r = rows[i]
     for _, c in ipairs(cols) do
       local cell = c.cell(r, i)
-      if type(cell) == "table" and cell.bar then
+      if type(cell) == "table" and cell.button then
+        t.add({ type = "button", caption = cell.button, tags = cell.tags, tooltip = cell.tooltip, enabled = cell.enabled ~= false })
+      elseif type(cell) == "table" and cell.bar then
         local bar = t.add({ type = "progressbar", value = math.min(1, math.max(0, cell.bar)) })
         bar.style.width = 120
       else
@@ -247,6 +252,58 @@ local function render_mods(player)
       cell = function(m)
         if m.update then return { "[color=255,200,100]" .. m.update .. "[/color]", tooltip = "a newer version is on the mod portal" } end
         return portal[m.name] and "latest" or ""
+      end },
+  }, rows, state)
+end
+
+---------------------------------------------------------------------------------------------------------------------
+-- Get mods tab: the fse mod catalog (github.com/watdafawx/fse-mods)
+
+local function render_catalog(player)
+  local frame = player.gui.screen[NAME]
+  local body = frame and find(frame, "fhub_catalog_body")
+  if not body then return end
+  body.clear()
+  local d = data.catalog
+  if not d then
+    fetch("catalog")
+    return message(body, "Reading the mod index...")
+  end
+  local state = view(player.index).catalog
+  local search = state.search:lower()
+  local fse = native.version()
+  local rows = {}
+  for _, m in ipairs(d.mods or {}) do
+    local needs = {}
+    if m.fse and newer(m.fse, fse) then needs[#needs + 1] = "fse " .. m.fse end
+    for _, p in ipairs(m.plugins or {}) do if not has(p) then needs[#needs + 1] = "plugin " .. p end end
+    for _, n in ipairs(m.missing or {}) do needs[#needs + 1] = n end
+    m.needs = table.concat(needs, ", ")
+    m.state = not m.installed and "install" or newer(m.version, m.installed) and "update" or "latest"
+    local hay = (m.name .. " " .. (m.title or "") .. " " .. (m.author or "") .. " " .. (m.description or "")):lower()
+    if search == "" or hay:find(search, 1, true) then rows[#rows + 1] = m end
+  end
+  local note = body.add({ type = "label", caption = string.format("%d mods made for fse · %s%s", #(d.mods or {}),
+    d.index or "", d.error and (" · " .. d.error) or "") })
+  note.style.font_color = { 0.7, 0.7, 0.7 }
+  if jobs.install then message(body, "Installing " .. tostring(data.installing) .. "...") end
+  grid(body, "catalog", {
+    { key = "name", caption = "Mod", width = 300, sort = function(m) return (m.title or m.name):lower() end,
+      cell = function(m)
+        return { m.title or m.name, tooltip = m.name .. (m.author and (" by " .. m.author) or "") .. "\n"
+          .. (m.description or "") .. (m.repo and ("\n" .. m.repo) or "") }
+      end },
+    { key = "version", caption = "Version", cell = function(m) return m.version end },
+    { key = "installed", caption = "Installed", sort = function(m) return m.installed or "" end,
+      cell = function(m) return m.installed or "" end },
+    { key = "needs", caption = "Needs", width = 220, cell = function(m)
+        return m.needs ~= "" and { "[color=255,200,100]" .. m.needs .. "[/color]",
+          tooltip = "not installed here: mods come from the mod portal, plugins and fse from the fse release" } or ""
+      end },
+    { key = "state", caption = "", cell = function(m)
+        if m.state == "latest" then return "installed" end
+        return { button = m.state == "update" and "Update" or "Install", tags = { fhub = "install", mod = m.name },
+          enabled = not jobs.install, tooltip = "Downloads " .. m.name .. " " .. m.version .. " (checked against the index's sha256) into the mods folder; it loads at the next start" }
       end },
   }, rows, state)
 end
@@ -363,10 +420,11 @@ end
 
 ---------------------------------------------------------------------------------------------------------------------
 
-local TABS = { "hub", "mods", "startup" }
+local TABS = { "hub", "mods", "startup", "catalog" }
+local RENDER = { mods = render_mods, startup = render_startup, catalog = render_catalog }
 
 local function render(player, tab)
-  if tab == "mods" then render_mods(player) elseif tab == "startup" then render_startup(player) end
+  if RENDER[tab] then RENDER[tab](player) end
 end
 
 local function open(player, tab)
@@ -382,7 +440,7 @@ local function open(player, tab)
   tp.style.vertically_stretchable = true
   tp.style.horizontally_stretchable = true
   for i, name in ipairs(TABS) do
-    local t = tp.add({ type = "tab", caption = ({ hub = "Hub", mods = "Mods", startup = "Startup" })[name], tags = { fhub_tab = name } })
+    local t = tp.add({ type = "tab", caption = ({ hub = "Hub", mods = "Mods", startup = "Startup", catalog = "Get mods" })[name], tags = { fhub_tab = name } })
     local body = tp.add({ type = "flow", direction = "vertical" })
     body.style.vertically_stretchable = true
     body.style.horizontally_stretchable = true
@@ -412,9 +470,16 @@ end
 local function rerender(kind)
   for _, player in pairs(game.connected_players) do
     if player.gui.screen[NAME] then
-      if kind == "startup" then render_startup(player) else render_mods(player) end
+      render(player, kind)
     end
   end
+end
+
+local function install(name)
+  if jobs.install then return end
+  data.installing, data.install = name, nil
+  fetch("install", "fse_tools.catalog:install", name)
+  rerender("catalog")
 end
 
 local function click(e)
@@ -451,6 +516,8 @@ local function click(e)
     data.portal = nil
     fetch("portal")
     player.print("[fse] asking the mod portal...")
+  elseif action == "install" then
+    install(tags.mod)
   elseif action == "reload" then
     data[tags.tab] = nil
     render(player, tags.tab)
@@ -471,6 +538,15 @@ local function poll()
         data[kind] = helpers.json_to_table(out) or { error = "unreadable answer" }
       else
         data[kind] = { error = tostring(out) }
+      end
+      if kind == "install" then
+        local r = data.install
+        for _, p in pairs(game.connected_players) do
+          p.print(r.ok and string.format("[fse] %s %s installed: restart the game to load it%s", r.name, r.version,
+            r.pypath and " (its Python half is on FSE_PYPATH)" or "") or ("[fse] install failed: " .. tostring(r.error)))
+        end
+        data.catalog, data.mods = nil, nil
+        kind = "catalog"
       end
       rerender(kind == "portal" and "mods" or kind)
     end
@@ -502,6 +578,7 @@ script.on_nth_tick(10, safe.guard("fse-hub", function() if next(jobs) then poll(
 -- for tests
 remote.add_interface("fse-hub", { open = function(pi, tab) open(game.get_player(pi), tab) end,
   url = function(path) return web_url(path) end,
+  install = function(name) install(name) end,
   loaded = function(kind) return data[kind] ~= nil and (data[kind].error or true) end })
 
 events.register({ input.handlers, window.handlers, {

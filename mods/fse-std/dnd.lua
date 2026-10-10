@@ -18,6 +18,8 @@ local input = require("__fse-std__/input")
 
 local M = {}
 local DRAG, DROP = "fstd_drag", "fstd_drop"
+-- (one ghost name per mod: every mod using the library has its own copy, and names in gui.screen are shared)
+M.GHOST = "fstd_dnd_ghost_" .. script.mod_name
 local drop_handlers, phase_handlers = {}, {}
 local state = {}       -- player_index -> {phase = "armed" | "dragging" | "picked", source, payload, ghost, target}
 local last_left = {}
@@ -85,14 +87,15 @@ local function clone(parent, el)
 end
 
 local function make_ghost(player, s, note)
+  if player.gui.screen[M.GHOST] then player.gui.screen[M.GHOST].destroy() end
   local size = type(s.payload) == "table" and s.payload.card_size
   if size and not note then  -- a card: a copy of the source, centred on the cursor
-    local g = player.gui.screen.add({ type = "flow", name = "fstd_dnd_ghost", ignored_by_interaction = true })
+    local g = player.gui.screen.add({ type = "flow", name = M.GHOST, ignored_by_interaction = true })
     clone(g, s.source)
     s.ghost, s.ghost_offset = g, -size / 2
     return g
   end
-  local g = player.gui.screen.add({ type = "frame", name = "fstd_dnd_ghost", style = "fstd_ghost", direction = "horizontal",
+  local g = player.gui.screen.add({ type = "frame", name = M.GHOST, style = "fstd_ghost", direction = "horizontal",
     ignored_by_interaction = true })
   local src = s.source
   local sprite = type(s.payload) == "table" and s.payload.sprite  -- (for sources that draw their icon in child elements)
@@ -129,7 +132,7 @@ end
 
 -- (a ghost left in a save by a drag that never finished)
 local function sweep(player)
-  local g = player.gui.screen.fstd_dnd_ghost
+  local g = player.gui.screen[M.GHOST]
   if g and not state[player.index] then g.destroy() end
 end
 

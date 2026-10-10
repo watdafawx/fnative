@@ -41,7 +41,8 @@ unsafe fn write_code(at: usize, bytes: &[u8]) {
 
 #[no_mangle]
 pub extern "system" fn DllMain(_module: HMODULE, reason: u32, _reserved: *mut c_void) -> BOOL {
-    if reason == DLL_PROCESS_ATTACH && std::env::var_os("FSE_OFF").is_none() {
+    let wanted = std::env::var_os("FSE_OFF").is_none() || std::env::var_os("FSE_NO_STEAM").is_some();
+    if reason == DLL_PROCESS_ATTACH && wanted {
         unsafe {
             let base = GetModuleHandleW(std::ptr::null()) as usize;
             let nt = base + *((base + 0x3c) as *const u32) as usize;
@@ -58,9 +59,30 @@ pub extern "system" fn DllMain(_module: HMODULE, reason: u32, _reserved: *mut c_
 
 unsafe extern "system" fn entry(arg: *mut c_void) -> u32 {
     write_code(ENTRY, &*std::ptr::addr_of!(ORIGINAL));
-    load();
+    if std::env::var_os("FSE_NO_STEAM").is_some() {
+        no_steam();
+    }
+    if std::env::var_os("FSE_OFF").is_none() {
+        load();
+    }
     let original: Entry = std::mem::transmute(ENTRY);
     original(arg)
+}
+
+/// FSE_NO_STEAM (the test scripts): the game starts as if Steam weren't there. A Steam-started game keeps the
+/// player's settings (player-data.json: the shortcut bar...) in Steam's own folder, which every game started under
+/// that account shares, whatever its write-data: a test game with other mods would rewrite them. Steam's
+/// SteamAPI_RestartAppIfNecessary and SteamAPI_Init answer false; the game then runs like the standalone one.
+unsafe fn no_steam() {
+    let steam = GetModuleHandleW(wide("steam_api64.dll".as_ref()).as_ptr());
+    if steam.is_null() {
+        return;
+    }
+    for name in [c"SteamAPI_Init", c"SteamAPI_RestartAppIfNecessary"] {
+        if let Some(f) = windows_sys::Win32::System::LibraryLoader::GetProcAddress(steam, name.as_ptr() as *const u8) {
+            write_code(f as usize, &[0x31, 0xC0, 0xC3]); // xor eax, eax ; ret
+        }
+    }
 }
 
 /// `<game>\fse`: two folders up from `bin\x64\factorio.exe`

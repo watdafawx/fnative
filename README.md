@@ -32,7 +32,7 @@ At the first start fse puts its mods into your mods folder (newer versions too, 
 | mod | what it does |
 |---|---|
 | `fse-std` | GUI library for other mods: movable, resizable windows that remember their place, and drag & drop. Works without fse too (no resize grip; click to pick, click to drop). |
-| `fse-hub` | an **F** button (top left) with tabs: loader and plugins, your mods (added/updated dates, real load order, portal updates), the start-up time report per mod, the engine profiler. Needs `fse-std`. |
+| `fse-hub` | an **F** button (top left) with tabs: loader and plugins, your mods (added/updated dates, real load order, portal updates), the start-up time report per mod, the engine profiler, and **Get mods**: the fse mod catalog ([fse-mods](https://github.com/watdafawx/fse-mods)), installed with one click and checked against the index's sha256 (they load at the next start). Needs `fse-std`. |
 | `fse-bridge` | runs commands from the local web API on the game thread. |
 | `fse-agent` | characters without a player that an external program (an AI agent, `examples/agent_client.py`) can drive. |
 
@@ -376,7 +376,8 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_fixes.py` | the data cache fix with a `~` dependency mod |
 | `run_web.py` | the web API, bridge and agents end to end |
 | `run_std_gui.py` | `fse-std` drag & drop and resizing in a real game window, with screenshots |
-| `run_hub.py` | the menu overlay, the hub and its tabs in a real game window |
+| `run_hub.py` | the menu overlay, the hub and its tabs in a real game window (an install from a local mod index too) |
+| `run_catalog.py` | the mod catalog's Python half (`fse_tools.catalog`), without the game |
 | `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |
 | `run_input_gui.py` | the `input` plugin in a real game window: a key press as an action event, then blocked |
 | `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |

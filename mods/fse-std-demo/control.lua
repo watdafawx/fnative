@@ -71,7 +71,7 @@ remote.add_interface("fse-std-demo", {
   end,
   order = function(pi) return table.concat(order(game.get_player(pi)), ",") end,
   size = function(pi) local w, h = window.size(game.get_player(pi), "fstd_demo") return { w = w, h = h } end,
-  ghost = function(pi) local g = game.get_player(pi).gui.screen.fstd_dnd_ghost return g and g.location or false end,
+  ghost = function(pi) local g = game.get_player(pi).gui.screen[dnd.GHOST] return g and g.location or false end,
 })
 
 events.register({ input.handlers, window.handlers, dnd.handlers })

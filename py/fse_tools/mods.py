@@ -9,7 +9,7 @@ which ones have a newer version on the mod portal. Called through the fse py plu
   creation date, the best guess there is.
 - updated: the date of the mod's file (when this version arrived).
 - load order: the order the game loaded the mods' data.lua in, read from factorio-current.log (the game's own answer).
-Folders: FACTORIO_MODS (the mods folder; default %APPDATA%\\Factorio\\mods) and the log in the folder above it.
+Folders: FSE_MODS, else FACTORIO_MODS (the mods folder; default %APPDATA%\\Factorio\\mods) and the log in the folder above it.
 """
 import json
 import os
@@ -25,7 +25,8 @@ GAME_VERSION = os.environ.get("FACTORIO_VERSION", "2.0")  # (releases for other 
 
 
 def _mods_dir() -> Path:
-    return Path(os.environ.get("FACTORIO_MODS") or os.path.join(os.environ.get("APPDATA", ""), "Factorio", "mods"))
+    # (FSE_MODS: what the core found for this game's arguments, --mod-directory included)
+    return Path(os.environ.get("FSE_MODS") or os.environ.get("FACTORIO_MODS") or os.path.join(os.environ.get("APPDATA", ""), "Factorio", "mods"))
 
 
 def _home() -> Path:

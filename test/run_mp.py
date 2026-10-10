@@ -25,6 +25,9 @@ HERE = Path(__file__).resolve().parent
 for n in ("mp-server", "mp-client", "mp-plain"):
     shutil.rmtree(HERE / "run" / n, ignore_errors=True)
 S, C, P = (run_dir(HERE / "run" / n) for n in ("mp-server", "mp-client", "mp-plain"))
+# (test games run without Steam (FSE_NO_STEAM): each client's name comes from its own player-data.json)
+for d, name in ((C, "fse-test-client"), (P, "fse-test-plain")):
+    (d / "player-data.json").write_text(json.dumps({"service-username": name}))
 MODS = HERE / "run" / "mp-mods"
 LAUNCH = str(NATIVE / "dist" / "fse-launcher.exe")
 PORT = "34297"

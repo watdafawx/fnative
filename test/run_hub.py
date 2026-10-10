@@ -1,6 +1,7 @@
 """the hub: the overlay button in the main menu (shown, at the window corner), hidden while a game ticks; the
-in-game hub window's tabs (Hub, Mods, Startup: screenshots) and a page in the panel over the game (screenshot). Real client, vanilla + fse-std + fse-hub + fse-bridge."""
-import ctypes, json, shutil, subprocess, time
+in-game hub window's tabs (Hub, Mods, Startup, Get mods: screenshots), an install from a local mod index (hub-demo,
+FSE_MOD_INDEX) and a page in the panel over the game (screenshot). Real client, vanilla + fse-std + fse-hub + fse-bridge."""
+import ctypes, hashlib, io, json, os, shutil, subprocess, time, zipfile
 from ctypes import wintypes
 from pathlib import Path
 from PIL import ImageGrab
@@ -30,6 +31,18 @@ for m in ("fse-std", "fse-hub", "fse-bridge"):
 shutil.copytree(NATIVE / "test" / "hub-test", MODS / "hub-test")
 (MODS / "hub-test" / "info.json").write_text(json.dumps({"name": "hub-test", "version": "0.0.1", "title": "hub test",
     "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base", "fse-hub"]}))
+# the catalog: a local index with one mod, hub-demo
+demo = io.BytesIO()
+with zipfile.ZipFile(demo, "w") as z:
+    z.writestr("hub-demo/info.json", json.dumps({"name": "hub-demo", "version": "0.1.0", "title": "Hub demo",
+        "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base"]}))
+(RUN / "hub-demo_0.1.0.zip").write_bytes(demo.getvalue())
+(RUN / "mod-index.json").write_text(json.dumps({"mods": [{"name": "hub-demo", "title": "Hub demo", "author": "mtopfox",
+    "description": "installed by run_hub.py", "version": "0.1.0", "url": (RUN / "hub-demo_0.1.0.zip").as_uri(),
+    "sha256": hashlib.sha256(demo.getvalue()).hexdigest(), "fse": "0.1.0", "plugins": ["py"]},
+    {"name": "hub-needs", "title": "Needs a newer fse", "version": "1.0.0", "url": "file:///nowhere.zip", "sha256": "",
+     "fse": "99.0.0", "plugins": ["nope"], "dependencies": ["base", "flib"]}]}))
+os.environ["FSE_MOD_INDEX"] = (RUN / "mod-index.json").as_uri()
 names = ["base", "elevated-rails", "quality", "space-age", "fse-std", "fse-hub", "fse-bridge", "hub-test"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
 launch = [str(NATIVE / "dist" / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]
@@ -76,4 +89,7 @@ game.kill()
 print("panel window:", panel)
 print("overlay visible while the game ran (last 5 checks):", seen[-5:])
 print((OUT / "hub-result.txt").read_text() if (OUT / "hub-result.txt").exists() else "no result")
+installed = MODS / "hub-demo_0.1.0" / "info.json"
+listed = {m["name"]: m["enabled"] for m in json.loads((MODS / "mod-list.json").read_text())["mods"]}
+print("hub-demo installed:", installed.exists(), "enabled:", listed.get("hub-demo"))
 print("screenshots:", sorted(f.name for f in OUT.glob("hub-*.png")))

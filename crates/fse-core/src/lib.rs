@@ -63,8 +63,35 @@ pub extern "system" fn DllMain(_module: HMODULE, reason: u32, _reserved: *mut c_
     TRUE
 }
 
+/// FSE_NO_STEAM (the test scripts): Steam's init answers false, so the game runs like the standalone one and never
+/// touches the player's settings in Steam's folder (the loader does the same for games it starts; see fse-loader)
+fn no_steam() {
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+    use windows_sys::Win32::System::Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE};
+    let name: Vec<u16> = "steam_api64.dll".encode_utf16().chain(Some(0)).collect();
+    unsafe {
+        let steam = GetModuleHandleW(name.as_ptr());
+        if steam.is_null() {
+            return;
+        }
+        for f in [c"SteamAPI_Init", c"SteamAPI_RestartAppIfNecessary"] {
+            if let Some(addr) = GetProcAddress(steam, f.as_ptr() as *const u8) {
+                let at = addr as usize as *mut u8;
+                let mut old = 0u32;
+                VirtualProtect(at as *const _, 3, PAGE_EXECUTE_READWRITE, &mut old);
+                std::ptr::copy_nonoverlapping([0x31u8, 0xC0, 0xC3].as_ptr(), at, 3); // xor eax, eax ; ret
+                VirtualProtect(at as *const _, 3, old, &mut old);
+            }
+        }
+    }
+}
+
 fn init() -> Result<(), String> {
     let started = std::time::Instant::now();
+    if std::env::var_os("FSE_NO_STEAM").is_some() {
+        no_steam();
+        log::line("FSE_NO_STEAM: the game runs without Steam");
+    }
     log::line(&format!("fse {VERSION} loading"));
     let pdb = std::env::current_exe().map_err(|e| e.to_string())?.with_extension("pdb");
     let syms = symbols::Symbols::new(fse_engine::functions(&pdb)?);
