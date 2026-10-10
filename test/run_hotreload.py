@@ -43,6 +43,8 @@ SRC.mkdir(parents=True)
 (SRC / "control.lua").write_text(CONTROL.format(v=1))
 (SRC / "data.lua").write_text(DATA.format(n=111))
 shutil.copytree(SRC, MODS / "hr-probe")
+for f in (MODS / "hr-probe").iterdir():  # (installed as an unzip does it: same bytes, new file times)
+    os.utime(f, (time.time() + 60, time.time() + 60))
 for m in ("fse-hotreload", "fse-bridge"):
     shutil.copytree(NATIVE / "mods" / m, MODS / m)
 names = ["base", "fse-hotreload", "fse-bridge", "hr-probe"]
@@ -112,6 +114,9 @@ def check(name, ok, got=""):
 
 try:
     check("game running with the probe", wait("v1 storage 7 stack 111"), last())
+    time.sleep(1.5)
+    check("an installed copy with other file times but the same bytes isn't a change",
+          "hr-probe held" not in log() and "hr-probe reloaded" not in log(), "")
     pid = games()
     time.sleep(1.5)  # (the first look only notes the files)
     (SRC / "control.lua").write_text(CONTROL.format(v=2))

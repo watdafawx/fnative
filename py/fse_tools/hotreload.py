@@ -20,6 +20,7 @@ that save.
     apply [names]                      -> "[]"
     restart {"save": name}             -> "" or an error (then Lua calls game.auto_save(name))
 """
+import filecmp
 import json
 import os
 import shutil
@@ -74,8 +75,13 @@ def _scan():
             names = list(_watch)
         for name in names:
             now = _files(_sources[name])
-            # (first look: against the installed copy, whose files keep their source's times: copytree copies them)
-            before = seen.get(name) or _files(installed / name)
+            before = seen.get(name)
+            if before is None:
+                # (first look: against the installed copy; an unzip or a copy that doesn't keep file times makes
+                # times differ, so those files are compared byte by byte)
+                src, inst = _sources[name], installed / name
+                before = {p: now[p] if p in now and t != now[p] and filecmp.cmp(src / p, inst / p, shallow=False)
+                          else t for p, t in _files(inst).items()}
             seen[name] = now
             if now != before:
                 paths = {p for p in now if before.get(p) != now[p]} | (before.keys() - now.keys())
