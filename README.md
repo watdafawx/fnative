@@ -15,6 +15,22 @@ ships with the game, so game updates need no new offsets, and Steam updates leav
 > binaries). Keep crash-report uploading off while you experiment: crashes with foreign code in the process are
 > noise for Wube.
 
+> **For mod developers: hot reload.** Edit your mod and see the change in your running game, without restarting it
+> yourself or reloading the save. Add one line to `fse.env`:
+>
+> ```
+> FSE_HOTRELOAD=C:\dev\my-mods
+> ```
+>
+> - **control.lua:** saved → in the game within half a second. `storage` is kept, `on_load` runs, and chat says
+>   `[hot reload] my-mod reloaded`.
+> - **Syntax error:** refused. Chat shows the error with file and line, and the old code keeps running. No crash
+>   to the main menu.
+> - **data.lua, settings, locale, graphics:** the game saves and restarts on that save by itself (about 10 s on a
+>   small modlist), with the new prototypes.
+>
+> Singleplayer only. The mod must be installed as a folder, not a zip. Details: `fse-hotreload` below.
+
 ## Getting started
 
 ### 1. Install
