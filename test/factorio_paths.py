@@ -11,7 +11,6 @@ import re
 from pathlib import Path
 
 os.environ.setdefault("FSE_OFF", "1")  # (games started from here run plain even with the fse loader installed)
-os.environ.setdefault("FSE_NO_STEAM", "1")  # (and without Steam: they never touch the player's Steam settings)
 
 STEAM_GUESSES = [Path(p) / "steamapps/common/Factorio" for p in (
     "C:/Program Files (x86)/Steam", "C:/Program Files/Steam", "D:/SteamLibrary", "E:/SteamLibrary", "F:/SteamLibrary",
@@ -59,7 +58,9 @@ def run_dir(path):
     """a write-data folder for headless runs, with its own config.ini, so tests never touch the game's own"""
     path.mkdir(parents=True, exist_ok=True)
     ini = path / "config.ini"
-    text = f"[path]\nread-data={PATHS['game_data'].as_posix()}\nwrite-data={path.as_posix()}\n"
-    if not ini.exists() or f"write-data={path.as_posix()}" not in ini.read_text(encoding="utf-8"):
+    # (without the version line the game calls the file invalid and asks, over the main menu, to reset it)
+    text = f"; version=13\n[path]\nread-data={PATHS['game_data'].as_posix()}\nwrite-data={path.as_posix()}\n"
+    cur = ini.read_text(encoding="utf-8") if ini.exists() else ""
+    if "; version=" not in cur or f"write-data={path.as_posix()}" not in cur:
         ini.write_text(text, encoding="utf-8")  # (written again when the folder has moved)
     return path

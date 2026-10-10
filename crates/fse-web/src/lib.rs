@@ -25,6 +25,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+mod menu;
 mod overlay;
 mod panel;
 
@@ -242,7 +243,17 @@ pub unsafe extern "C" fn fse_plugin_init(host: *const fp::Host) -> i32 {
     fp::register("web", "url", f_url, fp::THREADSAFE);
     panel::set_base(&url);
     fp::register("web", "open", f_open, fp::THREADSAFE);
-    let buttons = std::env::var("FSE_OVERLAY").map(|v| v != "0").unwrap_or(true);
+    let mut buttons = std::env::var("FSE_OVERLAY").map(|v| v != "0").unwrap_or(true);
+    // (the game's main and pause menus get an "FSE hub" button under Settings: then the overlay buttons aren't needed)
+    if std::env::var("FSE_MENU_BUTTON").map(|v| v != "0").unwrap_or(true) {
+        match menu::install() {
+            Ok(menus) => {
+                fp::log(&format!("FSE hub button under Settings in: {}", menus.join(", ")));
+                buttons = false;
+            }
+            Err(e) => fp::log(&format!("main menu button: {e} (the overlay buttons instead)")),
+        }
+    }
     if buttons || panel::enabled() {
         overlay::start(buttons, in_game);
     }

@@ -81,7 +81,8 @@ In game, open the console and run:
 /c game.print(native and native.version() or "no loader")
 ```
 
-Or click the **F** button if you installed `fse-hub`.
+Or click the **F** button if you installed `fse-hub`. In the game's main menu and pause menu (Esc), **FSE hub** (under Settings)
+opens the dashboard.
 
 ## Settings (`fse\fse.env`)
 
@@ -96,7 +97,8 @@ One `KEY=value` per line, read at every start (by the loader, or the launcher be
 | `FSE_LOG` | `fse\fse.log` | the log file |
 | `FSE_WEB_PORT` | 8790 | the local web API's port (it takes the first free one of 8790-8799) |
 | `FSE_PANEL=0` | | open pages in the browser instead of the panel over the game |
-| `FSE_OVERLAY=0` | | no hub buttons over the main menu (to hide just one, use the dashboard's *Main menu buttons*) |
+| `FSE_MENU_BUTTON=0` | | no **FSE hub** button in the game's main and pause menus (then the overlay buttons below show instead) |
+| `FSE_OVERLAY=0` | | no hub buttons over the main menu when the menu button can't be added (to hide just one, use the dashboard's *Main menu buttons*) |
 | `FSE_STD_WHEEL=0` | | don't watch the mouse wheel (the `std` plugin's wheel events) |
 | `FSE_FIXES=0`, `FSE_FIX_<NAME>=0` | | turn off all engine fixes, or one |
 | `FSE_DIAG=1` | | log every engine error the game raises, even ones it catches itself |
@@ -242,7 +244,7 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 |---|---|
 | `py` | Python functions from Lua (above) |
 | `std` | `play_sound("__mod__/x.wav")` (a .wav from an unzipped mod, or under script-output, on this computer only), mouse position and buttons in GUI pixels, the wheel (with a lease so the game camera doesn't zoom while your GUI uses it), modifier keys, window size and focus, clipboard, real time, opening http(s) links |
-| `web` | a local HTTP API and pages on `127.0.0.1` (token in `fse\web-token.txt`): status, the profiler, native calls, `remote.call` through `fse-bridge`; `web.open(page)` shows a page in a panel over the game |
+| `web` | a local HTTP API and pages on `127.0.0.1` (token in `fse\web-token.txt`): status, the profiler, native calls, `remote.call` through `fse-bridge`; `web.open(page)` shows a page in a panel over the game; adds **FSE hub** to the game's main and pause menus (hooks the menus' `addResultButton`; a build without them gets the overlay buttons) |
 | `profiler` | times engine functions by name (`fse\plugins\profiler.json`): Game::update, entity updates by kind, belts, electric networks, robots, pathfinder, Lua events. Only between `profiler.start` and `profiler.stop` |
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
 | `diag` | off unless `FSE_DIAG=1`: logs the message and stack of every engine error |
@@ -376,6 +378,7 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_fixes.py` | the data cache fix with a `~` dependency mod |
 | `run_web.py` | the web API, bridge and agents end to end |
 | `run_std_gui.py` | `fse-std` drag & drop and resizing in a real game window, with screenshots |
+| `run_menu.py` | the **FSE hub** button in the main and pause menus: screenshots, clicks (posted to the game window), the panel opens |
 | `run_hub.py` | the menu overlay, the hub and its tabs in a real game window (an install from a local mod index too) |
 | `run_catalog.py` | the mod catalog's Python half (`fse_tools.catalog`), without the game |
 | `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |

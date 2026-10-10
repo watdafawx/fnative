@@ -60,7 +60,7 @@ for _ in range(90):
     o = overlay()
     if o and o["visible"]:
         break
-print("main menu overlay:", o)
+print("main menu overlay (hidden when the menu has its own FSE hub button):", o)
 time.sleep(3)
 if o:
     l, t, r, b = o["rect"]

@@ -428,7 +428,7 @@ dependencies = [
 
 [[package]]
 name = "fse-core"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "fse-engine",
  "retour",
@@ -558,6 +558,7 @@ version = "0.1.0"
 dependencies = [
  "fse-plugin",
  "raw-window-handle",
+ "retour",
  "serde_json",
  "tiny_http",
  "windows-sys 0.59.0",

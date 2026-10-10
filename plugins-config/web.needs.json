@@ -1,0 +1,29 @@
+{
+ "functions": [
+  "??0MainMenuGui@@QEAA@AEBVPackageFilesystemInfo@@@Z",
+  "?addResultButton@?$MenuGui@W4MainMenuResult@@@@QEAAPEAVTextButton@agui@@AEBVLocalisedString@@W4MainMenuResult@@PEBVButtonStyle@3@@Z",
+  "?process@InMainMenu@@UEAAXPEAVAppManager@@@Z",
+  "?literal@LocalisedString@@SA?AV1@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z",
+  "??1LocalisedString@@QEAA@XZ",
+  "??0GameMenuGui@@QEAA@PEBVPlayer@@@Z",
+  "?addResultButton@?$MenuGui@W4GameMenuResult@@@@QEAAPEAVTextButton@agui@@AEBVLocalisedString@@W4GameMenuResult@@PEBVButtonStyle@3@@Z",
+  "?process@InGameMenu@@UEAAXPEAVAppManager@@@Z"
+ ],
+ "classes": {
+  "AppManagerStateWithGuiManualConstruction<MainMenuGui>": [
+   "gui"
+  ],
+  "MenuGui<enum MainMenuResult>": [
+   "result"
+  ],
+  "AppManagerStateWithGuiManualConstruction<GameMenuGui>": [
+   "gui"
+  ],
+  "MenuGui<enum GameMenuResult>": [
+   "result"
+  ],
+  "LocalisedString": [
+   "key"
+  ]
+ }
+}
