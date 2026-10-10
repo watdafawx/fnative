@@ -26,8 +26,11 @@ ships with the game, so game updates need no new offsets, and Steam updates leav
 >   `[hot reload] my-mod reloaded`.
 > - **Syntax error:** refused. Chat shows the error with file and line, and the old code keeps running. No crash
 >   to the main menu.
-> - **data.lua, settings, locale, graphics:** the game saves and restarts on that save by itself (about 10 s on a
->   small modlist), with the new prototypes.
+> - **data.lua, settings, locale, graphics:** these load only when the game starts, and you usually change several
+>   files. So the mod is held, and a red **Restart for my-mod** button appears top left. Press it when your edits
+>   are done. The game saves and restarts on that save (about 10 s on a small modlist) with the new prototypes and
+>   code. A tool or AI agent can press it too: `remote.call("fse-hotreload", "restart")`, for example over fse's
+>   web API.
 >
 > Singleplayer only. The mod must be installed as a folder, not a zip. Details: `fse-hotreload` below.
 
@@ -51,7 +54,7 @@ At the first start fse puts its mods into your mods folder (newer versions too, 
 | `fse-hub` | an **F** button (top left) with tabs: loader and plugins, your mods (added/updated dates, real load order, portal updates), the start-up time report per mod, the engine profiler, and **Get mods**: the fse mod catalog ([fse-mods](https://github.com/watdafawx/fse-mods)), installed with one click and checked against the index's sha256 (they load at the next start). Needs `fse-std`. |
 | `fse-bridge` | runs commands from the local web API on the game thread. |
 | `fse-agent` | characters without a player that an external program (an AI agent, `examples/agent_client.py`) can drive. |
-| `fse-hotreload` | for mod developers: list your mods' source folders in `fse.env` (`FSE_HOTRELOAD`); saving a file copies the mod over its installed folder and the running game reloads its control.lua within half a second (`game.reload_script`: `storage` kept, `on_load` runs). Changed files are compiled first, so a syntax error shows in chat and the old code keeps running. A data.lua, settings, locale or graphics change restarts the game on a fresh save (`_autosave-hotreload`, about 10 s for a small modlist), because prototypes only load at start. Singleplayer only, needs `python` on PATH for the restart, and the installed mod has to be a folder, not a zip. |
+| `fse-hotreload` | for mod developers: list your mods' source folders in `fse.env` (`FSE_HOTRELOAD`); saving a file copies the mod over its installed folder and the running game reloads its control.lua within half a second (`game.reload_script`: `storage` kept, `on_load` runs). Changed files are compiled first, so a syntax error shows in chat and the old code keeps running. A data.lua, settings, locale or graphics change holds the mod (nothing copied or reloaded, so new code never runs against old prototypes) until you press the **Restart for &lt;mod&gt;** button (top left) or call `remote.call("fse-hotreload", "restart")`. Then the game saves (`_autosave-hotreload`) and restarts on that save, about 10 s for a small modlist; prototypes only load at start. Edits made while the game was closed are picked up at the next start (the source is compared with the installed copy). Singleplayer only, needs `python` on PATH for the restart, and the installed mod has to be a folder, not a zip. |
 
 Every mod checks for fse first and does nothing (or falls back) without it.
 
@@ -410,7 +413,7 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |
 | `run_draw_gui.py` | the `draw` plugin in a real game window, the screen grabbed (`test\run\script-output\draw-screen.png`) |
 | `run_engine_api.py` | `native.read`, `layout`, `metatable`, `events`, the `hooks` plugin and `fse-std`'s `extend` and `native_events` |
-| `run_hotreload.py` | `fse-hotreload` in a real game window: a probe mod's control.lua edited and reloaded with storage kept; a syntax error refused, the game lives on; a data.lua edit restarts the game on its save with the new prototype |
+| `run_hotreload.py` | `fse-hotreload` in a real game window: a probe mod's control.lua edited and reloaded with storage kept; a syntax error refused, the game lives on; a data.lua edit held (with its control.lua) until a restart over the web API, then the game restarts on its save with both |
 | `run_mcp_game.py` | `mcp_game.py` over stdio: a probe mod started, Lua in its own state, ticks, an edit picked up by reload with storage kept |
 
 `factorio_paths.py` is shared with the mods' tests (an identical copy in each `test\`): `headless()` runs one test case,

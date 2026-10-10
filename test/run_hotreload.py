@@ -1,13 +1,16 @@
 """fse-hotreload in a real game window (through dist/fse-launcher.exe): a probe mod's source is edited while the game
-runs. control.lua: copied in and reloaded, storage kept; a syntax error refused, the game lives on. data.lua: the game
-is saved and started again on that save, with the new prototype and the storage. Opens game windows: don't run it
-while you play. Needs fse built (python build.py) with fse/py on FSE_PYPATH, and python on PATH."""
+runs. control.lua: copied in and reloaded, storage kept; a syntax error refused, the game lives on. data.lua: the
+change is held (a button waits) until fse-hotreload's remote restart (here over fse's web API): then the game is saved
+and started again on that save, with the new prototype, the new control.lua and the storage. Opens game windows: don't
+run it while you play. Needs fse built (python build.py) with fse/py on FSE_PYPATH, and python on PATH."""
 import json
 import os
 import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from factorio_paths import run_dir
@@ -40,8 +43,9 @@ SRC.mkdir(parents=True)
 (SRC / "control.lua").write_text(CONTROL.format(v=1))
 (SRC / "data.lua").write_text(DATA.format(n=111))
 shutil.copytree(SRC, MODS / "hr-probe")
-shutil.copytree(NATIVE / "mods" / "fse-hotreload", MODS / "fse-hotreload")
-names = ["base", "fse-hotreload", "hr-probe"]
+for m in ("fse-hotreload", "fse-bridge"):
+    shutil.copytree(NATIVE / "mods" / m, MODS / m)
+names = ["base", "fse-hotreload", "fse-bridge", "hr-probe"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": n in names} for n in
                                                          names + ["elevated-rails", "quality", "space-age"]]}))
 save = RUN / "saves" / "hotreload.zip"
@@ -85,6 +89,21 @@ def wait(want, secs=90):
     return last() == want
 
 
+def web_restart():
+    """what an agent does when its edits are done: remote.call("fse-hotreload", "restart") through fse-bridge"""
+    token = (NATIVE / "dist" / "web-token.txt").read_text().strip()
+    port = next((l.split("=", 1)[1].strip() for l in (NATIVE / "dist" / "fse.env").read_text().splitlines()
+                 if l.startswith("FSE_WEB_PORT=")), "8790")
+    body = json.dumps({"interface": "fse-hotreload", "function": "restart", "args": []}).encode()
+    r = urllib.request.Request(f"http://127.0.0.1:{port}/api/game", data=body, method="POST",
+                               headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(r, timeout=15) as f:
+            return f.status, json.loads(f.read()).get("result")
+    except (urllib.error.URLError, OSError) as e:
+        return 0, str(e)
+
+
 def check(name, ok, got=""):
     print(("PASS " if ok else "FAIL ") + name + (" :: " + got if got else ""))
     if not ok:
@@ -104,9 +123,18 @@ try:
           and "VERSION = 2" in (MODS / "hr-probe" / "control.lua").read_text(), last())
     (SRC / "control.lua").write_text(CONTROL.format(v=4))
     check("fixed file reloaded", wait("v4 storage 7 stack 111", 15), last())
-    t0 = time.time()
     (SRC / "data.lua").write_text(DATA.format(n=222))
-    check("data.lua edit: restarted on the save, new prototype, storage kept", wait("v4 storage 7 stack 222", 120),
+    time.sleep(2)
+    (SRC / "control.lua").write_text(CONTROL.format(v=5))  # (a held mod's control.lua waits too)
+    time.sleep(3)
+    check("data.lua edit held: no restart, nothing copied, control.lua waits too",
+          "hr-probe held" in log() and last() == "v4 storage 7 stack 111" and games() == pid
+          and "111" in (MODS / "hr-probe" / "data.lua").read_text(), last())
+    t0 = time.time()
+    status, answer = web_restart()
+    check("restart through the web API (remote fse-hotreload.restart)", status == 200 and "restarting" in str(answer),
+          f"{status} {answer}")
+    check("restarted on the save: new prototype and control.lua, storage kept", wait("v5 storage 7 stack 222", 120),
           f"{last()} after {time.time() - t0:.0f} s")
     check("a new game process", games() and games() != pid, f"{pid} -> {games()}")
     check("the restart loaded the hot reload save", "_autosave-hotreload" in log())

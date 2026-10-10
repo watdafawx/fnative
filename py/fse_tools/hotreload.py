@@ -2,14 +2,21 @@
 
 FSE_HOTRELOAD (fse.env): ';'-separated folders, each a mod's source (has info.json) or a folder of them. A watched mod
 the game runs from a folder in its mods folder (FSE_MODS) is scanned for changed files by a background thread (a scan
-takes milliseconds: not on the game thread). `check` hands the changed .lua sources to Lua, which compiles them first
-(a syntax error in a reloaded control.lua ends the game, one in data.lua stops the restart at an error screen);
-`apply` copies the source over the installed folder. Control-stage code only: Lua calls game.reload_script. Anything
-else (data*.lua, settings*.lua, prototypes/, info.json, locale, graphics): prototypes only load at the game's start
-(game.reload_mods reloads scripts only, even in a client), so `restart` has the game saved and started again on that
-save. Edits made while the game is closed aren't copied.
+takes milliseconds: not on the game thread). The first scan compares the source with the installed copy, so edits made
+while the game was closed count too.
 
-    check {"mods": [active mod names]} -> {"changed": [{"name", "lua": {path: source}, "restart": [paths]}], "notes": []}
+Control-stage code only: `check` hands the changed .lua sources to Lua, which compiles them first (a syntax error in a
+reloaded control.lua ends the game), `apply` copies the source over the installed folder, Lua calls
+game.reload_script. Anything else (data*.lua, settings*.lua, prototypes/, info.json, locale, graphics): prototypes
+only load at the game's start (game.reload_mods reloads scripts only, even in a client), and an editor (or an agent)
+saves such a change in several steps. So the mod is held: nothing of it is copied or reloaded (its new control.lua may
+need the new prototypes) until the player presses the restart button (or a program calls the mod's remote interface);
+then `held` gives every held .lua to compile, `apply` copies, and `restart` has the game saved and started again on
+that save.
+
+    check {"mods": [active mod names]} -> {"changed": [{"name", "lua": {path: source}}], "held": {name: [paths]},
+                                           "notes": []}
+    held                               -> [{"name", "lua": {path: source}}]
     apply [names]                      -> "[]"
     restart {"save": name}             -> "" or an error (then Lua calls game.auto_save(name))
 """
@@ -26,6 +33,7 @@ _lock = threading.Lock()
 _sources = None   # name -> source folder
 _watch = set()    # names the thread scans
 _pending = {}     # name -> changed relative paths, not yet handed out
+_held = {}        # name -> changed relative paths, waiting for the restart
 _noted = set()
 
 
@@ -60,14 +68,16 @@ def _files(d):
 
 def _scan():
     seen = {}
+    installed = Path(os.environ.get("FSE_MODS", ""))
     while True:
         with _lock:
             names = list(_watch)
         for name in names:
             now = _files(_sources[name])
-            before = seen.get(name)
+            # (first look: against the installed copy, whose files keep their source's times: copytree copies them)
+            before = seen.get(name) or _files(installed / name)
             seen[name] = now
-            if before is not None and now != before:
+            if now != before:
                 paths = {p for p in now if before.get(p) != now[p]} | (before.keys() - now.keys())
                 with _lock:
                     _pending.setdefault(name, set()).update(paths)
@@ -95,15 +105,29 @@ def check(s):
             elif name not in _noted:
                 _noted.add(name)
                 notes.append(f"{name} isn't a folder in {installed}: hot reload needs it unzipped")
-        pending = dict(_pending)
+        changed = []
+        for name, paths in sorted(_pending.items()):
+            if name in _held or not all(map(_control_code, paths)):
+                if name not in _held:
+                    notes.append(f"{name} held: a change that loads only at the game's start. Press \"Restart for "
+                                 f"{name}\" (top left) when your edits are done")
+                _held.setdefault(name, set()).update(paths)
+            else:
+                changed.append({"name": name, "lua": _lua(name, paths)})
         _pending.clear()
-    changed = []
-    for name, paths in sorted(pending.items()):
-        src = _sources[name]
-        lua = {p: (src / p).read_text(encoding="utf-8", errors="replace") for p in sorted(paths)
-               if p.endswith(".lua") and (src / p).exists()}
-        changed.append({"name": name, "lua": lua, "restart": sorted(p for p in paths if not _control_code(p))})
-    return json.dumps({"changed": changed, "notes": notes})
+        waiting = {n: sorted(p for p in ps if not _control_code(p)) for n, ps in _held.items()}
+    return json.dumps({"changed": changed, "held": waiting, "notes": notes})
+
+
+def _lua(name, paths):
+    src = _sources[name]
+    return {p: (src / p).read_text(encoding="utf-8", errors="replace") for p in sorted(paths)
+            if p.endswith(".lua") and (src / p).exists()}
+
+
+def held(_):
+    with _lock:
+        return json.dumps([{"name": n, "lua": _lua(n, ps)} for n, ps in sorted(_held.items())])
 
 
 def apply(s):
@@ -112,6 +136,8 @@ def apply(s):
         dest = installed / name
         shutil.rmtree(dest, ignore_errors=True)
         shutil.copytree(_sources[name], dest, ignore=shutil.ignore_patterns(*SKIP))
+        with _lock:
+            _held.pop(name, None)
     return "[]"
 
 
