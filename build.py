@@ -17,7 +17,7 @@ NATIVE = Path(__file__).resolve().parent
 REL = NATIVE / "target" / "release"
 DIST = NATIVE / "dist"
 PYTHON = sys.executable
-MODS = ("fse-std", "fse-hub", "fse-bridge", "fse-agent")  # (not the demos and test mods)
+MODS = ("fse-std", "fse-hub", "fse-bridge", "fse-agent", "fse-hotreload")  # (not the demos and test mods)
 
 
 def run(cmd, cwd=None, env=None):
