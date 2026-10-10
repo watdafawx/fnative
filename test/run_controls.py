@@ -23,10 +23,13 @@ def game_window():
         p = wintypes.DWORD()
         u32.GetWindowThreadProcessId(h, ctypes.byref(p))
         if p.value in pids and u32.IsWindowVisible(h) and u32.GetWindowTextLengthW(h) > 0:
-            found.append(h)
+            r = wintypes.RECT()
+            u32.GetClientRect(h, ctypes.byref(r))
+            found.append((r.right * r.bottom, h))
         return True
     u32.EnumWindows(each, 0)
-    return found[0] if found else None
+    # (the biggest: fse's own windows, an overlay or the hub panel, belong to the process too)
+    return max(found)[1] if found else None
 
 
 def focus(h):
