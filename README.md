@@ -48,6 +48,10 @@ plugin ...\fse_std.dll: init ok
 ready in 70.97ms
 ```
 
+**Updates:** when a newer fse is out, the hub says so (its Hub tab, the dashboard behind **FSE hub** in the menus,
+and once in the chat). **Update** downloads it from the GitHub release, checks it against the release's sha256 and
+installs it over this one (your `fse.env` stays); the game uses it from its next start.
+
 **Off for one start:** set `FSE_OFF=1` in the environment. **Uninstall:** run `fse\uninstall.cmd`, or delete
 `bin\x64\version.dll` and the `fse` folder. The mods stay; disable them in the game if you like.
 
@@ -381,6 +385,7 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_menu.py` | the **FSE hub** button in the main and pause menus: screenshots, clicks (posted to the game window), the panel opens |
 | `run_hub.py` | the menu overlay, the hub and its tabs in a real game window (an install from a local mod index too) |
 | `run_catalog.py` | the mod catalog's Python half (`fse_tools.catalog`), without the game |
+| `run_update.py` | fse updates (`fse_tools.update`) against a fake release and game folder: sha256, a loaded DLL swapped, `fse.env` kept |
 | `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |
 | `run_input_gui.py` | the `input` plugin in a real game window: a key press as an action event, then blocked |
 | `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |

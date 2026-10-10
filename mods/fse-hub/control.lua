@@ -77,9 +77,11 @@ local JOBS = {
   portal = "fse_tools.mods:portal",
   startup = "fse_tools.startup:report",
   catalog = "fse_tools.catalog:listing",
+  update = "fse_tools.update:check",
 }
 local jobs = {}   -- kind -> job id
 local data = {}   -- kind -> the answer as a table, or { error = "..." }
+local announced = false  -- (the newer fse said in chat once a session)
 local views = {}  -- player_index -> what each tab shows (sort, search, page)
 
 local function fetch(kind, fn, input)
@@ -388,10 +390,34 @@ local function profile_rows(table_el)
   end
 end
 
+-- a newer fse on GitHub (fse_tools.update): the version, and Update when this install can update itself
+local function update_row(flow)
+  flow.clear()
+  local u = data.update
+  if data.updated then
+    flow.add({ type = "label", caption = "[color=120,220,120]fse " .. data.updated .. " installed: restart the game to use it[/color]" })
+    return
+  end
+  if not (u and u.newer) then return end
+  flow.add({ type = "label", caption = "[color=255,200,100]fse " .. u.latest .. " is out[/color] (this is " .. u.current .. ")",
+    tooltip = u.notes })
+  if jobs.update_install then
+    flow.add({ type = "label", caption = "downloading..." })
+  elseif u.installable then
+    flow.add({ type = "button", caption = "Update", style = "green_button", tags = { fhub = "update" },
+      tooltip = "Downloads fse " .. u.latest .. ", checks it against the release's sha256 and installs it; the game uses it from its next start" })
+  else
+    flow.add({ type = "label", caption = u.why or "", tooltip = u.url })
+  end
+end
+
 local function hub_tab(content)
   local build = native.build and native.build() or {}
   content.add({ type = "label", caption = "fse " .. native.version() .. " · build " .. tostring(build.build or "?"):sub(1, 8)
     .. " · plugins: " .. table.concat(plugins(), ", ") }).style.single_line = false
+  local up = content.add({ type = "flow", name = "fhub_update", direction = "horizontal" })
+  up.style.vertical_align = "center"
+  update_row(up)
   local links = content.add({ type = "flow", direction = "horizontal" })
   local bp = remote.interfaces["bpgen"] and "bpgen" or remote.interfaces["bpgen-companion"] and "bpgen-companion"
   if bp and remote.interfaces[bp].open_window then  -- (bpgen's mod; "bpgen-companion" before 0.6)
@@ -470,7 +496,11 @@ end
 
 local function rerender(kind)
   for _, player in pairs(game.connected_players) do
-    if player.gui.screen[NAME] then
+    local frame = player.gui.screen[NAME]
+    if frame and (kind == "update" or kind == "update_install") then
+      local row = find(frame, "fhub_update")
+      if row then update_row(row) end
+    elseif frame then
       render(player, kind)
     end
   end
@@ -508,6 +538,9 @@ local function click(e)
   if action == "bpgen" then
     player.gui.screen[NAME].destroy()
     remote.call(remote.interfaces["bpgen"] and "bpgen" or "bpgen-companion", "open_window", player.index)
+  elseif action == "update" then
+    fetch("update_install", "fse_tools.update:install", "")
+    rerender("update")
   elseif action == "dashboard" then
     open_page("")
   elseif action == "copy" then
@@ -540,6 +573,19 @@ local function poll()
       else
         data[kind] = { error = tostring(out) }
       end
+      if kind == "update" and data.update.newer and not announced then
+        announced = true
+        for _, p in pairs(game.connected_players) do
+          p.print("[fse] fse " .. data.update.latest .. " is out (this is " .. data.update.current .. "): the F button (top left) has Update")
+        end
+      elseif kind == "update_install" then
+        local r = data.update_install
+        if r.ok then data.updated = r.version end
+        for _, p in pairs(game.connected_players) do
+          p.print(r.ok and ("[fse] fse " .. r.version .. " installed: restart the game to use it")
+            or ("[fse] update failed: " .. tostring(r.error)))
+        end
+      end
       if kind == "install" then
         local r = data.install
         for _, p in pairs(game.connected_players) do
@@ -555,6 +601,8 @@ local function poll()
 end
 
 local function refresh()
+  -- (once a session: is there a newer fse?)
+  if not data.update and not jobs.update and has("py") then fetch("update", nil, native.version()) end
   if not has("profiler") then return end
   for _, player in pairs(game.connected_players) do
     local frame = player.gui.screen[NAME]
@@ -580,6 +628,14 @@ script.on_nth_tick(10, safe.guard("fse-hub", function() if next(jobs) then poll(
 remote.add_interface("fse-hub", { open = function(pi, tab) open(game.get_player(pi), tab) end,
   url = function(path) return web_url(path) end,
   install = function(name) install(name) end,
+  update_row = function(pi)  -- (the Hub tab's update line, as text)
+    local frame = game.get_player(pi).gui.screen[NAME]
+    local row = frame and find(frame, "fhub_update")
+    if not row then return nil end
+    local parts = {}
+    for _, c in pairs(row.children) do parts[#parts + 1] = c.type == "button" and ("[" .. c.caption .. "]") or c.caption end
+    return table.concat(parts, " ")
+  end,
   button = function(pi, mod)  -- (a catalog row's Install button: "enabled", "disabled" or nil)
     local function walk(el)
       if el.type == "button" and el.tags.mod == mod then return el.enabled and "enabled" or "disabled" end

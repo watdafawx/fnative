@@ -43,6 +43,12 @@ with zipfile.ZipFile(demo, "w") as z:
     {"name": "hub-needs", "title": "Needs a newer fse", "version": "1.0.0", "url": "file:///nowhere.zip", "sha256": "",
      "fse": "99.0.0", "plugins": ["nope"], "dependencies": ["base", "flib"]}]}))
 os.environ["FSE_MOD_INDEX"] = (RUN / "mod-index.json").as_uri()
+# the update check: a newer fse (9.9.9) in a local release; this dev build can't install it (Hub tab says why)
+(RUN / "release.json").write_text(json.dumps({"tag_name": "v9.9.9", "body": "a test release", "assets": [
+    {"name": "fse-9.9.9-windows.zip", "browser_download_url": (RUN / "fse-9.9.9-windows.zip").as_uri()},
+    {"name": "fse-9.9.9-windows.zip.sha256", "browser_download_url": (RUN / "fse-9.9.9-windows.zip.sha256").as_uri()}]}))
+os.environ["FSE_UPDATE_API"] = (RUN / "release.json").as_uri()
+(NATIVE / "dist" / "update-cache.json").unlink(missing_ok=True)
 names = ["base", "elevated-rails", "quality", "space-age", "fse-std", "fse-hub", "fse-bridge", "hub-test"]
 (MODS / "mod-list.json").write_text(json.dumps({"mods": [{"name": n, "enabled": True} for n in names]}))
 launch = [str(NATIVE / "dist" / "fse-launcher.exe"), "--config", str(RUN / "config.ini"), "--mod-directory", str(MODS)]

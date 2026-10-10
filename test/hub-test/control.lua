@@ -30,6 +30,8 @@ script.on_event(defines.events.on_tick, function(e)
   elseif e.tick == 260 then
     log("mod-gui button: " .. tostring(mod_gui.get_button_flow(p).fse_hub_button ~= nil))
     log("hub open: " .. tostring(p.gui.screen.fse_hub ~= nil))
+    log("update check: " .. tostring(remote.call("fse-hub", "loaded", "update")))
+    log("update row: " .. tostring(remote.call("fse-hub", "update_row", 1)))
     shot("hub-ingame.png")
   elseif e.tick > 300 and (step == "hub" or step == "mods" or step == "startup" or step == "catalog") then
     if step == "hub" then step = "mods"; waited = 0; remote.call("fse-hub", "open", 1, "mods") return end

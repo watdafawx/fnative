@@ -12,6 +12,10 @@
   <span id="hdr-status">connecting...</span>
 </header>
 <main class="wrap">
+  <fieldset id="update" hidden><legend>fse update</legend>
+    <div class="row"><span id="updText"></span><button class="primary" id="updGo" hidden>Update</button></div>
+    <p class="muted" id="updNotes" style="font-size:12px;white-space:pre-wrap"></p>
+  </fieldset>
   <div class="grid">
     <fieldset><legend>Game</legend><div id="game" class="muted">...</div></fieldset>
     <fieldset><legend>Agents</legend>
@@ -87,7 +91,32 @@ if (!needToken()) {
   for (const [id, key] of [["ovHub", "hub"], ["ovStartup", "startup"]])
     $(id).onchange = () => api("POST", "/api/overlay", { [key]: $(id).checked }).then(ovSet).catch((e) => alert(e.message));
   api("GET", "/api/overlay").then(ovSet).catch(() => {});
-  status(); profile(); interfaces();
+  // a newer fse on GitHub (fse_tools.update): its notes, and Update when this install can update itself
+  async function update() {
+    try {
+      const s = await api("GET", "/api/status");
+      const u = await native("py", "fse_tools.update:check", s.core.join("."));
+      clearInterval(updTimer);  // (answered: once is enough)
+      if (!u || !u.newer) return;
+      $("update").hidden = false;
+      $("updText").innerHTML = `<b>fse ${esc(u.latest)}</b> is out (this is ${esc(u.current)}). ` +
+        (u.installable ? "" : `<span class="muted">${esc(u.why)}: <a href="${esc(u.url)}">the zip</a></span>`);
+      $("updNotes").textContent = u.notes || "";
+      $("updGo").hidden = !u.installable;
+    } catch { /* (no py plugin, no network: no banner) */ }
+  }
+  $("updGo").onclick = async () => {
+    $("updGo").disabled = true;
+    $("updText").textContent = "downloading...";
+    const r = await native("py", "fse_tools.update:install").catch((e) => ({ error: e.message }));
+    $("updText").innerHTML = r.ok ? `<span class="ok">fse ${esc(r.version)} installed: restart the game to use it</span>`
+      : `<span class="bad">${esc(r.error)}</span>`;
+    $("updGo").hidden = !!r.ok;
+    $("updGo").disabled = false;
+  };
+  // (the game may still be starting: asked again until an answer comes)
+  const updTimer = setInterval(update, 30000);
+  status(); profile(); interfaces(); update();
   setInterval(status, 2000); setInterval(profile, 1000);
 }
 </script>

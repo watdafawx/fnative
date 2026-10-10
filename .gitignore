@@ -4,4 +4,4 @@ dist/
 test/run/
 __pycache__/
 *.pyc
-fse-*-windows.zip
+fse-*-windows.zip*
