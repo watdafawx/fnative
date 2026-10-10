@@ -1,3 +1,3 @@
-{"name": "fse-hotreload", "version": "0.2.0", "title": "FSE hot reload",
+{"name": "fse-hotreload", "version": "0.2.1", "title": "FSE hot reload",
  "author": "mtopfox", "factorio_version": "2.0", "dependencies": ["base"],
  "description": "For mod developers: edits to a mod's source folder (FSE_HOTRELOAD in fse.env) reach the running singleplayer game in half a second (control.lua reloaded, storage kept); data.lua changes wait for a Restart button. Does nothing without fse or FSE_HOTRELOAD."}

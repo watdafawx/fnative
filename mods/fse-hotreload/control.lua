@@ -40,6 +40,16 @@ local function syntax_error(mods)
   end
 end
 
+-- a red icon button the size of the other mod buttons (mod_gui_button: 40 px), with a restart arrow
+local function add_button(flow)
+  local sprite = helpers.is_valid_sprite_path("utility/reset") and "utility/reset" or "utility/refresh"
+  local ok, button = pcall(flow.add, { type = "sprite-button", name = BUTTON, sprite = sprite, style = "tool_button_red" })
+  if not ok then button = flow.add({ type = "sprite-button", name = BUTTON, sprite = sprite, style = "mod_gui_button" }) end
+  button.style.size = 40
+  button.style.padding = 6
+  return button
+end
+
 -- the button in every player's mod button flow while mods are held, gone when none are
 local function show_held(held)
   local names, lines = {}, {}
@@ -54,9 +64,9 @@ local function show_held(held)
     if #names == 0 then
       if button then button.destroy() end
     else
-      button = button or flow.add({ type = "button", name = BUTTON, style = "red_button" })
-      button.caption = "Restart for " .. table.concat(names, ", ")
-      button.tooltip = "Changed, loads only at the game's start:\n" .. table.concat(lines, "\n") ..
+      button = button or add_button(flow)
+      button.tooltip = "[font=default-bold]Restart for " .. table.concat(names, ", ") .. "[/font]\n" ..
+        "Changed, loads only at the game's start:\n" .. table.concat(lines, "\n") ..
         "\n\nPress when your edits are done: the game is saved and started again on that save."
     end
   end
