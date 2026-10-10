@@ -117,6 +117,11 @@ try:
     time.sleep(1.5)
     check("an installed copy with other file times but the same bytes isn't a change",
           "hr-probe held" not in log() and "hr-probe reloaded" not in log(), "")
+    (SRC / "README.md").write_text("notes\n")
+    time.sleep(2)
+    check("a README edit: copied, no hold, no reload",
+          (MODS / "hr-probe" / "README.md").exists() and "hr-probe held" not in log()
+          and "hr-probe reloaded" not in log(), "")
     pid = games()
     time.sleep(1.5)  # (the first look only notes the files)
     (SRC / "control.lua").write_text(CONTROL.format(v=2))

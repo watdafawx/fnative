@@ -7,7 +7,8 @@ while the game was closed count too.
 
 Control-stage code only: `check` hands the changed .lua sources to Lua, which compiles them first (a syntax error in a
 reloaded control.lua ends the game), `apply` copies the source over the installed folder, Lua calls
-game.reload_script. Anything else (data*.lua, settings*.lua, prototypes/, info.json, locale, graphics): prototypes
+game.reload_script. Files the game doesn't use while playing (README, changelog, Python, thumbnail: `_kind`) are just
+copied. The rest (data*.lua, settings*.lua, prototypes/, info.json, locale, graphics, sounds): prototypes
 only load at the game's start (game.reload_mods reloads scripts only, even in a client), and an editor (or an agent)
 saves such a change in several steps. So the mod is held: nothing of it is copied or reloaded (its new control.lua may
 need the new prototypes) until the player presses the restart button (or a program calls the mod's remote interface);
@@ -90,9 +91,29 @@ def _scan():
         time.sleep(0.5)
 
 
-def _control_code(path):
+START_FILES = (".png", ".jpg", ".jpeg", ".ogg", ".wav", ".voc", ".ttf", ".otf", ".glsl", ".hlsl")
+
+
+def _kind(path):
+    """control: control-stage Lua (reloads live); start: loads only at the game's start (holds the mod); other: the
+    game doesn't use it while playing (README, changelog, Python, the mod manager's thumbnail): just copied"""
     name = path.rsplit("/", 1)[-1]
-    return name.endswith(".lua") and not name.startswith(("data", "settings")) and not path.startswith("prototypes/")
+    if name.endswith(".lua"):
+        return "start" if name.startswith(("data", "settings")) or path.startswith("prototypes/") else "control"
+    if path == "info.json" or path.startswith("locale/") or (name.endswith(START_FILES) and name != "thumbnail.png"):
+        return "start"
+    return "other"
+
+
+def _copy_paths(name, paths):
+    """just these files from the source to the installed copy (gone from the source: gone there too)"""
+    src, dest = _sources[name], Path(os.environ["FSE_MODS"]) / name
+    for p in paths:
+        if (src / p).exists():
+            (dest / p).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src / p, dest / p)
+        else:
+            (dest / p).unlink(missing_ok=True)
 
 
 def check(s):
@@ -111,17 +132,22 @@ def check(s):
             elif name not in _noted:
                 _noted.add(name)
                 notes.append(f"{name} isn't a folder in {installed}: hot reload needs it unzipped")
-        changed = []
+        changed, quiet = [], []
         for name, paths in sorted(_pending.items()):
-            if name in _held or not all(map(_control_code, paths)):
+            kinds = {_kind(p) for p in paths}
+            if name in _held or "start" in kinds:
                 if name not in _held:
-                    notes.append(f"{name} held: a change that loads only at the game's start. Press \"Restart for "
-                                 f"{name}\" (top left) when your edits are done")
+                    notes.append(f"{name} held: a change that loads only at the game's start. Press the red restart "
+                                 f"icon (top left) when your edits are done")
                 _held.setdefault(name, set()).update(paths)
-            else:
+            elif "control" in kinds:
                 changed.append({"name": name, "lua": _lua(name, paths)})
+            else:
+                quiet.append((name, paths))
         _pending.clear()
-        waiting = {n: sorted(p for p in ps if not _control_code(p)) for n, ps in _held.items()}
+        waiting = {n: sorted(p for p in ps if _kind(p) == "start") for n, ps in _held.items()}
+    for name, paths in quiet:
+        _copy_paths(name, paths)
     return json.dumps({"changed": changed, "held": waiting, "notes": notes})
 
 
