@@ -23,7 +23,8 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         rel = f.relative_to(DIST)
         if f.is_file() and not SKIP & set(rel.parts):
             z.write(f, rel if rel.parts[0] == "bin" else Path("fse") / rel)
-    z.write(NATIVE / "fse.env.example", "fse/fse.env")
+    # (as an example only: unzipping over an install must not replace the player's fse.env)
+    z.write(NATIVE / "fse.env.example", "fse/fse.env.example")
     for name in ("README.md", "LICENSE"):
         if (NATIVE / name).exists():
             z.write(NATIVE / name, f"fse/{name}")

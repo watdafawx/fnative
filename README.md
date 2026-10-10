@@ -38,7 +38,8 @@ At the first start fse puts its mods into your mods folder (newer versions too, 
 
 Every mod checks for fse first and does nothing (or falls back) without it.
 
-Settings go in `fse\fse.env` (optional, see the comments in it). The log is `fse\fse.log`. A good start:
+Settings go in `fse\fse.env` (optional: copy `fse\fse.env.example` to it and see the comments; unzipping a newer
+release over the install never replaces it). The log is `fse\fse.log`. A good start:
 
 ```
 fse 0.10.0 loading
