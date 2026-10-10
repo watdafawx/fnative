@@ -28,6 +28,7 @@ const ACTION_CTOR: &str =
 const NO_DATA: &str = "?noData@InputAction@@SA_NW4InputActionType@@@Z";
 const ACTION_DTOR: &str = "??1InputAction@@QEAA@XZ";
 const SEND: &str = "?tryToSendInputAction@Scenario@@QEBA_N$$QEAVInputAction@@@Z";
+const SHORTCUT_COPY: &str = "??0LuaShortcutData@ActionData@@QEAA@AEBU01@@Z";
 
 type UpdateStep = unsafe extern "C" fn(usize);
 type Close = unsafe extern "C" fn(*mut LuaState);
@@ -35,6 +36,7 @@ type Ctor = unsafe extern "C" fn(*mut u8, u32, *const StdString) -> *mut u8;
 type NoData = unsafe extern "C" fn(u32) -> bool;
 type Dtor = unsafe extern "C" fn(*mut u8);
 type Send = unsafe extern "C" fn(usize, *mut u8) -> bool;
+type ShortcutCopy = unsafe extern "C" fn(*mut u8, *const LuaShortcutData) -> *mut u8;
 
 static STEP: OnceLock<GenericDetour<UpdateStep>> = OnceLock::new();
 static CLOSE: OnceLock<GenericDetour<Close>> = OnceLock::new();
@@ -201,6 +203,13 @@ struct StdString {
     cap: usize,
 }
 
+/// ActionData::LuaShortcutData: what a LuaShortcut input action carries in place (its buffer)
+#[repr(C)]
+struct LuaShortcutData {
+    player: u16,
+    name: StdString, // (at 8)
+}
+
 /// native.sync(name, data) -> true | nil, error : `data` (a string, JSON by convention) reaches every peer as the
 /// "fse-sync" event {player_index, key = name, data}, in the same tick. Only a peer with a player can send (not a headless
 /// server). It travels as console commands: over 30 KB in parts, which take a few seconds per 100 KB to arrive.
@@ -282,7 +291,17 @@ fn send_action(kind_name: &str, text: Option<&str>) -> Result<(), String> {
     let mut room = vec![0u64; (size as usize).div_ceil(8) + 4];
     unsafe {
         let action = room.as_mut_ptr() as *mut u8;
-        if text.is_some() {
+        if kind_name == "LuaShortcut" {
+            // (a shortcut bar click of a mod's shortcut, `text` its prototype name: the data is built in place in the
+            // action's buffer by the game's own copy constructor, so the game owns its copy of the name)
+            let copy = s.addr(SHORTCUT_COPY).ok_or("no ActionData::LuaShortcutData copy constructor")?;
+            let (at_type, at_buf) = crate::engine::with_types(|t| Ok::<_, String>((
+                t.field_offset("InputAction", "type").ok_or("no InputAction::type")?,
+                t.field_offset("InputAction", "buffer").ok_or("no InputAction::buffer")?)))?;
+            *(action.add(at_type as usize) as *mut u16) = kind as u16;
+            let src = LuaShortcutData { player: (local_player().unwrap_or(1) - 1) as u16, name: st };
+            std::mem::transmute::<usize, ShortcutCopy>(copy)(action.add(at_buf as usize), &src);
+        } else if text.is_some() {
             std::mem::transmute::<usize, Ctor>(ctor)(action, kind as u32, &st);
         } else {
             // (a kind without data: the zeroed action with its kind set, as the game's own constructor leaves it)
@@ -306,7 +325,7 @@ fn send_action(kind_name: &str, text: Option<&str>) -> Result<(), String> {
 /// native.send_action(kind, text?) -> true | nil, error : an input action as this peer's player would make it (kind:
 /// an InputActionType name, native.layout("InputActionType")), through the game's own pipeline, so every
 /// multiplayer peer applies it. Kinds without data (OpenCharacterGui, ToggleDriving, ...) or with a text
-/// (WriteToConsole). Others need data this can't make: the game may ignore them or misread them.
+/// (WriteToConsole); LuaShortcut with a shortcut prototype's name (a click on a mod's shortcut: on_lua_shortcut). Others need data this can't make: the game may ignore them or misread them.
 pub unsafe extern "C" fn n_send_action(l: *mut LuaState) -> c_int {
     let Some(kind) = crate::lua::arg_str(l, 1) else { return crate::lua::fail(l, "native.send_action(kind, text?)") };
     let text = crate::lua::arg_str(l, 2);

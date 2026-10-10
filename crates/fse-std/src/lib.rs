@@ -3,7 +3,8 @@
 //!   input        {"x","y": cursor in the game window's client area (pixels, may be outside), "inside", "focused",
 //!                 "left","right","middle": buttons held, "shift","ctrl","alt": keys held, "w","h": client size,
 //!                 "wheel": mouse wheel notches turned over the focused game window since the game started (up +,
-//!                 down -): a running total, so each reader keeps its own last value}
+//!                 down -): a running total, so each reader keeps its own last value,
+//!                 "keys": virtual-key codes of every key and mouse button held now}
 //!                (buttons and keys only count while the game window has focus)
 //!   clipboard_get / clipboard_set(text)
 //!   now          milliseconds since 1970 (real time; Lua in the game has no clock)
@@ -13,6 +14,12 @@
 //!                cursor is over a view the mod zooms, so the map behind doesn't zoom too
 //!   play_sound(path)  plays a .wav on this computer only (no game state: safe in multiplayer): "__mod__/x.wav" from
 //!                an unzipped mod's folder, or a path under script-output; "" stops it. One sound at a time
+//!   press(json)  a key or mouse button into the game window, as if pressed on this computer (the game's controls and
+//!                every mod's custom inputs bound to it fire): {"scancode": "SDL_SCANCODE_E" or "E" (the game's names),
+//!                or "vk": 69, or "mouse": "left|right|middle|x1|x2|wheel-up|wheel-down", "mods": ["ctrl","shift","alt"],
+//!                "phase": "tap" (default) | "down" | "up", "hold_ms": 40 (tap: how long it stays down)}. Posted to the
+//!                game window only, never global input
+//!   key_info(vk) {"vk", "scancode" (set 1, +0x100 extended), "name": the key's name on this keyboard}
 //!   mock(json)   tests: fields given here replace the real input until mock("") (e.g. {"left": true, "x": 100})
 //! All threadsafe. Single player: input differs per machine, so game state driven by it would desync multiplayer.
 
@@ -26,7 +33,8 @@ use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData};
 use windows_sys::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
 use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_LBUTTON, VK_MBUTTON, VK_MENU, VK_RBUTTON, VK_SHIFT};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetKeyNameTextW, MapVirtualKeyW, VK_CONTROL, VK_LBUTTON,
+                                                       VK_MBUTTON, VK_MENU, VK_RBUTTON, VK_SHIFT};
 use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetClientRect, GetCursorPos, GetForegroundWindow, GetWindowThreadProcessId, IsWindow, IsWindowVisible};
 
 static MOCK: Mutex<Option<Map<String, Value>>> = Mutex::new(None);
@@ -130,6 +138,8 @@ fn input() -> Value {
         v.insert("inside".into(), json!(inside));
         v.insert("focused".into(), json!(focused));
         v.insert("wheel".into(), json!(WHEEL.load(std::sync::atomic::Ordering::Relaxed) / 120));
+        let keys: Vec<u16> = if focused { (1u16..255).filter(|&k| held(k)).collect() } else { Vec::new() };
+        v.insert("keys".into(), json!(keys));
         for (name, vk) in [("left", VK_LBUTTON), ("right", VK_RBUTTON), ("middle", VK_MBUTTON), ("shift", VK_SHIFT),
                            ("ctrl", VK_CONTROL), ("alt", VK_MENU)] {
             v.insert(name.into(), json!(focused && held(vk)));
@@ -250,6 +260,180 @@ fn play_sound(path: &str) -> Result<String, String> {
     if ok == 0 { Err(format!("play_sound: {} didn't play (a .wav?)", file.display())) } else { Ok("playing".into()) }
 }
 
+/// the game's (SDL's) scancode names, without "SDL_SCANCODE_", as PS/2 set 1 scan codes (+0x100: extended, E0)
+fn scan_of(name: &str) -> Option<u32> {
+    let up = name.trim().to_ascii_uppercase();
+    let n = up.strip_prefix("SDL_SCANCODE_").unwrap_or(&up);
+    const LETTERS: [u32; 26] = [0x1e, 0x30, 0x2e, 0x20, 0x12, 0x21, 0x22, 0x23, 0x17, 0x24, 0x25, 0x26, 0x32, 0x31, 0x18,
+                                0x19, 0x10, 0x13, 0x1f, 0x14, 0x16, 0x2f, 0x11, 0x2d, 0x15, 0x2c];
+    if n.len() == 1 {
+        let c = n.as_bytes()[0];
+        if c.is_ascii_uppercase() {
+            return Some(LETTERS[(c - b'A') as usize]);
+        }
+        if c.is_ascii_digit() {
+            return Some(if c == b'0' { 0x0b } else { (c - b'1') as u32 + 2 });
+        }
+    }
+    if let Some(f) = n.strip_prefix('F').and_then(|f| f.parse::<u32>().ok()) {
+        return match f { 1..=10 => Some(0x3a + f), 11 => Some(0x57), 12 => Some(0x58), _ => None };
+    }
+    if let Some(k) = n.strip_prefix("KP_").and_then(|k| k.parse::<usize>().ok()) {
+        return [0x52, 0x4f, 0x50, 0x51, 0x4b, 0x4c, 0x4d, 0x47, 0x48, 0x49].get(k).copied();
+    }
+    Some(match n {
+        "RETURN" => 0x1c, "ESCAPE" => 0x01, "BACKSPACE" => 0x0e, "TAB" => 0x0f, "SPACE" => 0x39, "MINUS" => 0x0c,
+        "EQUALS" => 0x0d, "LEFTBRACKET" => 0x1a, "RIGHTBRACKET" => 0x1b, "BACKSLASH" => 0x2b, "SEMICOLON" => 0x27,
+        "APOSTROPHE" => 0x28, "GRAVE" => 0x29, "COMMA" => 0x33, "PERIOD" => 0x34, "SLASH" => 0x35, "CAPSLOCK" => 0x3a,
+        "SCROLLLOCK" => 0x46, "NUMLOCKCLEAR" => 0x45, "NONUSBACKSLASH" => 0x56, "KP_MULTIPLY" => 0x37,
+        "KP_MINUS" => 0x4a, "KP_PLUS" => 0x4e, "KP_PERIOD" => 0x53, "LCTRL" => 0x1d, "LSHIFT" => 0x2a, "LALT" => 0x38,
+        "RSHIFT" => 0x36,
+        "PRINTSCREEN" => 0x137, "INSERT" => 0x152, "HOME" => 0x147, "PAGEUP" => 0x149, "DELETE" => 0x153,
+        "END" => 0x14f, "PAGEDOWN" => 0x151, "RIGHT" => 0x14d, "LEFT" => 0x14b, "DOWN" => 0x150, "UP" => 0x148,
+        "KP_DIVIDE" => 0x135, "KP_ENTER" => 0x11c, "APPLICATION" => 0x15d, "RCTRL" => 0x11d, "RALT" => 0x138,
+        "LGUI" => 0x15b, "RGUI" => 0x15c,
+        _ => return None,
+    })
+}
+
+/// a virtual key as a set 1 scan code (+0x100 extended)
+fn scan_of_vk(vk: u32) -> u32 {
+    let sc = unsafe { MapVirtualKeyW(vk, 4) }; // (MAPVK_VK_TO_VSC_EX: E0 in the high byte)
+    (sc & 0xff) | if sc & 0xff00 != 0 { 0x100 } else { 0 }
+}
+
+fn key_name(sc: u32) -> String {
+    let mut buf = [0u16; 64];
+    let lp = ((sc & 0xff) << 16) | if sc & 0x100 != 0 { 1 << 24 } else { 0 };
+    let n = unsafe { GetKeyNameTextW(lp as i32, buf.as_mut_ptr(), buf.len() as i32) };
+    String::from_utf16_lossy(&buf[..n.max(0) as usize])
+}
+
+/// what one press posts: a key (scan code) or a mouse button / wheel notch
+#[derive(Clone, Copy)]
+enum Press {
+    Key(u32),
+    Mouse(&'static str),
+}
+
+unsafe fn post(hwnd: HWND, what: Press, down: bool, alt: bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+    match what {
+        Press::Key(sc) => {
+            let ext = sc & 0x100 != 0;
+            let vk = match MapVirtualKeyW((sc & 0xff) | if ext { 0xe000 } else { 0 }, 3) { // (MAPVK_VSC_TO_VK_EX)
+                // (a real keyboard's messages carry the plain shift/ctrl/alt keys; the scan code tells left from right)
+                0xa0 | 0xa1 => 0x10,
+                0xa2 | 0xa3 => 0x11,
+                0xa4 | 0xa5 => 0x12,
+                vk => vk,
+            };
+            let mut lp = 1 | ((sc & 0xff) << 16) | if ext { 1 << 24 } else { 0 };
+            if alt {
+                lp |= 1 << 29;
+            }
+            if !down {
+                lp |= (1 << 30) | (1 << 31);
+            }
+            let msg = match (down, alt) { (true, false) => WM_KEYDOWN, (true, true) => WM_SYSKEYDOWN,
+                                          (false, false) => WM_KEYUP, (false, true) => WM_SYSKEYUP };
+            PostMessageW(hwnd, msg, vk as usize, lp as isize);
+        }
+        Press::Mouse(button) => {
+            let mut p = POINT { x: 0, y: 0 };
+            GetCursorPos(&mut p);
+            let screen = (((p.y as u32 & 0xffff) << 16) | (p.x as u32 & 0xffff)) as isize;
+            if let Some(notch) = match button { "wheel-up" => Some(120i32), "wheel-down" => Some(-120), _ => None } {
+                if down {
+                    PostMessageW(hwnd, WM_MOUSEWHEEL, ((notch as u32 & 0xffff) << 16) as usize, screen);
+                }
+                return;
+            }
+            ScreenToClient(hwnd, &mut p);
+            let lp = (((p.y as u32 & 0xffff) << 16) | (p.x as u32 & 0xffff)) as isize;
+            let (dn, up, wp) = match button {
+                "left" => (WM_LBUTTONDOWN, WM_LBUTTONUP, 0x0001usize),
+                "right" => (WM_RBUTTONDOWN, WM_RBUTTONUP, 0x0002),
+                "middle" => (WM_MBUTTONDOWN, WM_MBUTTONUP, 0x0010),
+                "x1" => (WM_XBUTTONDOWN, WM_XBUTTONUP, 0x0001_0020),
+                _ => (WM_XBUTTONDOWN, WM_XBUTTONUP, 0x0002_0040),
+            };
+            // (button up: the XBUTTON number stays in the high word, the held-buttons mask goes)
+            PostMessageW(hwnd, if down { dn } else { up }, if down { wp } else { wp & 0xffff_0000 }, lp);
+        }
+    }
+}
+
+fn press(text: &str) -> Result<String, String> {
+    let v: Value = serde_json::from_str(text).map_err(|e| format!("press: {e}"))?;
+    let what = if let Some(m) = v["mouse"].as_str() {
+        // (the game's names for buttons too: "Left", "Button 4", ...)
+        let m = m.to_ascii_lowercase().replace(['_', ' '], "-");
+        Press::Mouse(match m.as_str() {
+            "left" | "button-1" => "left",
+            "right" | "button-2" => "right",
+            "middle" | "button-3" => "middle",
+            "x1" | "button-4" => "x1",
+            "x2" | "button-5" => "x2",
+            "wheel-up" | "up" => "wheel-up",
+            "wheel-down" | "down" => "wheel-down",
+            _ => return Err(format!("press: no mouse button {m}")),
+        })
+    } else if let Some(vk) = v["vk"].as_u64() {
+        Press::Key(scan_of_vk(vk as u32))
+    } else if let Some(name) = v["scancode"].as_str() {
+        Press::Key(scan_of(name).ok_or(format!("press: no key {name}"))?)
+    } else if let Some(sc) = v["scancode"].as_u64() {
+        Press::Key(sc as u32)
+    } else {
+        return Err("press: give \"scancode\", \"vk\" or \"mouse\"".into());
+    };
+    let mods: Vec<String> = v["mods"].as_array()
+        .map(|a| a.iter().filter_map(|m| m.as_str()).map(|m| m.to_ascii_lowercase()).collect())
+        .unwrap_or_default();
+    let mod_keys: Vec<u32> = [("ctrl", 0x1d), ("control", 0x1d), ("shift", 0x2a), ("alt", 0x38)].iter()
+        .filter(|(n, _)| mods.iter().any(|m| m == n)).map(|&(_, sc)| sc).collect();
+    let alt = mod_keys.contains(&0x38);
+    let hold = v["hold_ms"].as_u64().unwrap_or(40).min(2000);
+    let hwnd = game_window() as usize;
+    if hwnd == 0 {
+        return Err("press: no game window".into());
+    }
+    let mods_up = mod_keys.clone();
+    let down = move || unsafe {
+        for &m in &mod_keys {
+            post(hwnd as HWND, Press::Key(m), true, alt && m != 0x38);
+        }
+        post(hwnd as HWND, what, true, alt);
+    };
+    let up = move || unsafe {
+        post(hwnd as HWND, what, false, alt);
+        for &m in mods_up.iter().rev() {
+            post(hwnd as HWND, Press::Key(m), false, alt && m != 0x38);
+        }
+    };
+    match v["phase"].as_str().unwrap_or("tap") {
+        "down" => down(),
+        "up" => up(),
+        _ => {
+            down();
+            // (released after hold_ms off the game thread: the game sees the key held for a few frames)
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(hold));
+                up();
+            });
+        }
+    }
+    Ok("pressed".into())
+}
+
+fp::export!(f_press, |_, text| press(text));
+fp::export!(f_key_info, |_, text| {
+    let vk: u32 = text.trim().parse().map_err(|_| "key_info: a virtual-key code".to_string())?;
+    let sc = scan_of_vk(vk);
+    Ok(json!({"vk": vk, "scancode": sc, "name": key_name(sc)}).to_string())
+});
+
 fp::export!(f_play_sound, |_, path| play_sound(path.trim()));
 fp::export!(f_input, |_, _| Ok(input().to_string()));
 fp::export!(f_clip_get, |_, _| clipboard_get());
@@ -294,7 +478,8 @@ pub unsafe extern "C" fn fse_plugin_init(host: *const fp::Host) -> i32 {
     }
     for (f, n) in [(f_input as fp::PluginFn, "input"), (f_clip_get, "clipboard_get"), (f_clip_set, "clipboard_set"),
                    (f_now, "now"), (f_read, "read"), (f_mock, "mock"), (f_open, "open"),
-                   (f_wheel_capture, "wheel_capture"), (f_play_sound, "play_sound")] {
+                   (f_wheel_capture, "wheel_capture"), (f_play_sound, "play_sound"), (f_press, "press"),
+                   (f_key_info, "key_info")] {
         fp::register("std", n, f, fp::THREADSAFE);
     }
     if std::env::var("FSE_STD_WHEEL").map(|v| v != "0").unwrap_or(true) {

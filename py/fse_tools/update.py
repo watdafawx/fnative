@@ -8,7 +8,7 @@ The release zip mirrors the game's folder (bin/x64/version.dll, fse/...) and com
 written unless the download matches it. The zip is unpacked into <fse>/update first, then each file is swapped in:
 a file the running game holds (fse.dll, the plugins, version.dll) can't be overwritten but can be renamed, so it
 becomes <name>.fse-old and the new one takes its place; the game uses them from its next start, and the next check
-deletes the .fse-old files. fse.env is never replaced. Only an install in a game folder (<game>/fse beside
+deletes the .fse-old files. fse.env and plugins/profiler.json (settings) are never replaced. Only an install in a game folder (<game>/fse beside
 <game>/bin/x64/factorio.exe) updates itself: a dev build (fse/dist) doesn't.
 FSE_UPDATE_API: another release JSON (the GitHub API's answer, or a file:// one for tests).
 """
@@ -25,7 +25,7 @@ from pathlib import Path
 from .mods import _home, _version_key
 
 API = os.environ.get("FSE_UPDATE_API", "https://api.github.com/repos/watdafawx/fse/releases/latest")
-KEEP = {"fse/fse.env"}  # (the player's settings)
+KEEP = {"fse/fse.env", "fse/plugins/profiler.json"}  # (the player's settings: kept once they exist)
 
 
 def _fetch(url: str) -> bytes:

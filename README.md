@@ -135,7 +135,7 @@ end
 | `native.metatable(object)` | a game object's metatable, past its protection (`fse-std`'s `extend` uses it) |
 | `native.sync(key, data)` | sends `data` (a string) from this peer's player to every peer: the `fse-sync` event `{player_index, key, data}` (multiplayer, below) |
 | `native.local_player()` | this peer's own player index, or nil (headless server, menu) |
-| `native.send_action(kind, text?)` | an input action as this peer's player makes it (kinds without data, like `OpenCharacterGui`, or with a text), through the game's own pipeline: every peer applies it |
+| `native.send_action(kind, text?)` | an input action as this peer's player makes it (kinds without data, like `OpenCharacterGui`, or with a text, like `WriteToConsole`; `LuaShortcut` with a shortcut's name clicks another mod's shortcut), through the game's own pipeline: every peer applies it |
 | `native.root()` | the game's root objects as pointers for `native.read`: `{scenario, game, map, local_player}` |
 | `native.write(target, path, value)` | writes a number or boolean field: for this peer's own state (camera, UI); writing simulation state desyncs multiplayer |
 | `native.tick_stats()` | how long the update step took: `{last_ms, avg_ms, max_ms}` (this peer's own) |
@@ -247,7 +247,7 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 | plugin | gives |
 |---|---|
 | `py` | Python functions from Lua (above) |
-| `std` | `play_sound("__mod__/x.wav")` (a .wav from an unzipped mod, or under script-output, on this computer only), mouse position and buttons in GUI pixels, the wheel (with a lease so the game camera doesn't zoom while your GUI uses it), modifier keys, window size and focus, clipboard, real time, opening http(s) links |
+| `std` | `play_sound("__mod__/x.wav")` (a .wav from an unzipped mod, or under script-output, on this computer only), mouse position and buttons in GUI pixels, the wheel (with a lease so the game camera doesn't zoom while your GUI uses it), modifier keys and every key held, window size and focus, clipboard, real time, opening http(s) links; `press {scancode \| vk \| mouse, mods, phase, hold_ms}` posts a key or mouse button to the game window as if pressed here (the game's controls and every mod's custom inputs bound to it fire), `key_info(vk)` names a key |
 | `web` | a local HTTP API and pages on `127.0.0.1` (token in `fse\web-token.txt`): status, the profiler, native calls, `remote.call` through `fse-bridge`; `web.open(page)` shows a page in a panel over the game; adds **FSE hub** to the game's main and pause menus (hooks the menus' `addResultButton`; a build without them gets the overlay buttons) |
 | `profiler` | times engine functions by name (`fse\plugins\profiler.json`): Game::update, entity updates by kind, belts, electric networks, robots, pathfinder, Lua events. Only between `profiler.start` and `profiler.stop` |
 | `fixes` | small engine bug fixes, each checking the exact bytes it expects first and skipping itself (logged) if a game update changed them |
@@ -255,7 +255,7 @@ Add `"? fse-std"` to your mod's dependencies if it should work without it, and c
 | `entityinfo` | a mod's own rows in the game's info panel for the entity under the cursor (below) |
 | `draw` | lines, rectangles, circles and text drawn over the game world every frame, on this computer only (safe in multiplayer): `draw.set {id, surface, shapes}`, `draw.clear {id}` (below) |
 | `hooks` | any engine function, by its pdb name, as an event for Lua on every call, with chosen arguments read (below) |
-| `input` | every player input action (336 kinds: `native.layout("InputActionType").values`) as an event `action` `{type, player, tick, blocked}` (`input.watch {types}` or `{all = true}`), and chosen kinds dropped before the game applies them (`input.block {types, player?}`) |
+| `input` | every player input action (336 kinds: `native.layout("InputActionType").values`) as an event `action` `{type, player, tick, blocked}` (`input.watch {types}` or `{all = true}`), and chosen kinds dropped before the game applies them (`input.block {types, player?}`); `input.controls`: every control the game has (its own and each mod's custom inputs) with the keys bound to it, as Settings > Controls shows them; `input.trigger {control}` presses a control's key into the game window |
 | `hello` | the C example |
 
 ### Engine fixes
@@ -388,6 +388,7 @@ saves or mods. They find the game like the launcher does (`FACTORIO_EXE` to over
 | `run_update.py` | fse updates (`fse_tools.update`) against a fake release and game folder: sha256, a loaded DLL swapped, `fse.env` kept |
 | `run_loader.py` | the installed loader: a direct start loads fse and puts its mods in place; `FSE_OFF`; loader and launcher together |
 | `run_input_gui.py` | the `input` plugin in a real game window: a key press as an action event, then blocked |
+| `run_controls.py` | `input.controls` (bindings and modifiers of the game's and a mod's controls), then in a real game window `input.trigger`, `std.press` (keys with each modifier, a mouse button) and `send_action("LuaShortcut")` fire what they should |
 | `run_mp.py` | a headless server and a client on this machine: simulation events and `native.sync` the same on both, no desync; a client without FSE kicked |
 | `run_draw_gui.py` | the `draw` plugin in a real game window, the screen grabbed (`test\run\script-output\draw-screen.png`) |
 | `run_engine_api.py` | `native.read`, `layout`, `metatable`, `events`, the `hooks` plugin and `fse-std`'s `extend` and `native_events` |
