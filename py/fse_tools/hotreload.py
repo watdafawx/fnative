@@ -239,9 +239,12 @@ def restart(s):
         else:
             print("fse-hotreload: the save didn't finish in 2 minutes, not restarting")
             return
+        # (without FSE_OFF: a plugin's Python may have set it in this process for the plain test games it starts -
+        # bpgen's config does - and the restarted game would then come back without fse)
+        env = {k: v for k, v in os.environ.items() if k != "FSE_OFF"}
         subprocess.Popen([python, "-c", WAIT_THEN_START, str(os.getpid()), exe, *_arguments(), "--load-game", str(save)],
                          creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
         os._exit(0)
 
     threading.Thread(target=wait_and_go, daemon=True, name="fse-hotreload restart").start()
